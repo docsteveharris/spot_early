@@ -1,80 +1,70 @@
-clear
-* ==================================
-* = DEFINE LOCAL AND GLOBAL MACROS =
-* ==================================
-local ddsn mysqlspot
-local uuser stevetm
-local ppass ""
+*  ======================================================
+*  = Define data set for the early vs deferred analysis =
+*  ======================================================
+
+/*
+Run this as if it was fresh ... that means duplicating a lot of the cr_working
+Then identify and drop
+- sites with complicated ICU referral patterns
+- patients who have complicated journeys into ICU
+*/
 
 
-*  =======================================
-*  = Log definitions and standard set-up =
-*  =======================================
-GenericSetupSteveHarris spot_early cr_working, logon
+local clean_run 1
+if `clean_run' {
+	// capture {
+
+		clear
+		local ddsn mysqlspot
+		local uuser stevetm
+		local ppass ""
+		odbc query "`ddsn'", user("`uuser'") pass("`ppass'") verbose
+
+		clear
+		timer on 1
+		odbc load, exec("SELECT * FROM spot_early.working_early")  dsn("`ddsn'") user("`uuser'") pass("`ppass'") lowercase sqlshow clear
+		timer off 1
+		timer list 1
+		count
+
+		* Merge in site level data
+		preserve
+		include cr_sites.do
+		restore
+		merge m:1 icode using ../data/sites.dta, ///
+			keepusing(heads_tailed* ccot_shift_pattern all_cc_in_cmp ///
+				tails_wardemx* tails_othercc* ///
+				ht_ratio cmp_beds_persite*)
+		drop _m
 
 
-*  =======================================
-*  = Visit level data import from SQL db =
-*  =======================================
+		file open myvars using ../data/scratch/vars.yml, text write replace
+		foreach var of varlist * {
+			di "- `var'" _newline
+			file write myvars "- `var'" _newline
+		}
+		file close myvars
 
-capture {
-
-	odbc query "`ddsn'", user("`uuser'") pass("`ppass'") verbose
-
-	clear
-	timer on 1
-	odbc load, exec("SELECT * FROM spot_early.working_early")  dsn("`ddsn'") user("`uuser'") pass("`ppass'") lowercase sqlshow clear
-	timer off 1
-	timer list 1
-	count
-
-	* Merge in site level data
-	preserve
-	include cr_sites.do
-	restore
-	merge m:1 icode using ../data/sites.dta, ///
-		keepusing(heads_tailed* ccot_shift_pattern all_cc_in_cmp ///
-			tails_wardemx* tails_othercc* ///
-			ht_ratio cmp_beds_persite*)
-	drop _m
+		compress
 
 
-	file open myvars using ../data/scratch/vars.yml, text write replace
-	foreach var of varlist * {
-		di "- `var'" _newline
-		file write myvars "- `var'" _newline
-	}
-	file close myvars
+		shell ../ccode/label_stata_fr_yaml.py "../data/scratch/vars.yml" "../local/lib_phd/dictionary_fields.yml"
 
-	compress
-
-
-	shell ../ccode/label_stata_fr_yaml.py "../data/scratch/vars.yml" "../local/lib_phd/dictionary_fields.yml"
-
-	capture confirm file ../data/scratch/_label_data.do
-	if _rc == 0 {
-		include ../data/scratch/_label_data.do
-		* shell  rm ../data/scratch/_label_data.do
-		* shell rm ../data/scratch/myvars.yml
-	}
-	else {
-		di as error "Error: Unable to label data"
-		exit
-	}
+		capture confirm file ../data/scratch/_label_data.do
+		if _rc == 0 {
+			include ../data/scratch/_label_data.do
+			* shell  rm ../data/scratch/_label_data.do
+			* shell rm ../data/scratch/myvars.yml
+		}
+		else {
+			di as error "Error: Unable to label data"
+			exit
+		}
+	// }
+	save ../data/working_raw.dta, replace
 }
-save ../data/working_raw.dta, replace
 
-*  ========================
-*  = Define analysis axes =
-*  ========================
-* TODO: 2012-10-01 - you may want to make the definitions more 'transportable'
-* i.e. move them back into the python codebase
-
-
-*  ===========================================================
-*  = Now run the include exclude code to produce working.dta =
-*  ===========================================================
-*  This should produce the data for the consort diagram
+GenericSetupSteveHarris spot_early cr_working, logon
 
 use ../data/working_raw.dta, clear
 cap drop included_sites
@@ -133,11 +123,25 @@ count if include == 1 & elgfirst_episode == 0 & exclude1 == 0
 count if include == 1 & withinsh == 1 & exclude1 == 0
 count if include == 1 & elgreport_heads == 0 & exclude1 == 0
 count if include == 1 & elgreport_tails == 0 & exclude1 == 0
+* CHANGED: 2013-02-06 - extra exclusions for early arm of study
+count if include == 1 & all_cc_in_cmp == 0 & exclude1 == 0
+count if include == 1 & tails_othercc != 0 & exclude1 == 0
+count if include == 1 & loca == 1 & exclude1 == 0
+count if include == 1 & inlist(v_disposal, 2, 6) & exclude1 == 0
 
 replace exclude1 = 1 if include == 1 & elgfirst_episode == 0
 replace exclude1 = 1 if include == 1 & withinsh == 1
 replace exclude1 = 1 if include == 1 & elgreport_heads == 0
 replace exclude1 = 1 if include == 1 & elgreport_tails == 0
+* CHANGED: 2013-02-06 - drop patients admitted via theatre
+replace exclude1 = 1 if include == 1 & loca == 1
+* CHANGED: 2013-02-08 - drop patients with treatment limits
+replace exclude1 = 1 if include == 1 & inlist(v_disposal, 2, 6) 
+* CHANGED: 2013-02-06 - drop sites with non-CMP critical care areas
+replace exclude1 = 1 if all_cc_in_cmp == 0
+* CHANGED: 2013-02-06 - drop sites with admissions reported to CMP units 
+* via other non-CMP areas
+replace exclude1 = 1 if tails_othercc != 0
 tab exclude1 if include == 1
 
 cap drop included_sites
@@ -186,11 +190,11 @@ drop if exclude2 == 1
 drop if exclude3 == 1
 
 * No point keeping these vars since they don't mean anything now
-drop include exclude1 exclude2
+drop include exclude1 exclude2 exclude3
 
 save ../data/working.dta, replace
 
-log close
+cap log close
 
 
 
