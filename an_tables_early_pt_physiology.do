@@ -1,5 +1,60 @@
+*  =========================
+*  = Baseline patient data =
+*  =========================
+
 /*
-Prepare table comparing characteristics of the early versus deferred admission
+Prepare table 1b for chapter that describes patient physiology
+
+
+Cardiovascular physiology
+	Heart rate
+	Sinus rhythm
+	Blood pressure
+
+Cardiovascular support
+	None
+	Volume resuscitation
+	Vasopressors or inotropes
+	Systolic blood pressure
+	Mean blood pressure
+
+Respiratory physiology
+	Respiratory rate
+	Oxygen saturations
+	Inspired oxygen
+
+Respiratory support
+	None
+	Supplemental oxygen
+	Non-invasive ventilation
+	IPPV
+
+Renal physiology
+	Urine volume
+	Creatinine
+	Urea
+	Renal replacement therapy
+
+Neurology
+	New confusion
+	GCS
+	Alert
+	Verbal
+	Pain
+	Unresponsive
+
+Arterial blood gas
+	Available
+	pH
+	P:F ratio
+	PaCO2
+	HCO3
+	Lactate
+
+Other labs
+	Sodium
+	Platelets
+	Bilirubin
 
 
 */
@@ -8,8 +63,8 @@ Prepare table comparing characteristics of the early versus deferred admission
 *  =========================
 *  = Define you table name =
 *  =========================
-GenericSetupSteveHarris spot_early an_tables_early_comparison, logon
-global table_name early_comparison
+GenericSetupSteveHarris spot_early an_tables_early_pt_physiology, logon
+global table_name early_pt_physiology
 
 /*
 You will need the following columns
@@ -21,53 +76,99 @@ You will need the following columns
 - max
 */
 
-local clean_run 0
+*  ==========================================================================
+*  = Create an indicator variable to identify patients in the original data =
+*  ==========================================================================
+local clean_run 1
 if `clean_run' == 1 {
 	clear
 	use ../data/working.dta
-	qui include cr_preflight.do
+	include cr_preflight.do
 }
-
+* this is the spot_early cohort
 use ../data/working_postflight.dta, clear
+gen spot_sample = 1
+tempfile 2merge
+save `2merge', replace
+* this is the spot_ward cohort
+use ../../spot_ward/data/working_postflight, clear
+gen spot_sample = 0
+count
+* deliberately merge so that there are no matches to create byable groups
+merge 1:1 idvisit spot_sample using `2merge'
+label var spot_sample "Study sample"
+label define spot_sample 0 "All patients" 1 "Eligible patients"
+label values spot_sample spot_sample
+tab spot_sample
 
-local byvar early4
-* NOTE: 2013-02-05 - don't used the centred versions for the table
+
+*  ======================================
+*  = Define column categories or byvars =
+*  ======================================
+* NOTE: 2013-02-07 - dummy variable for the byvar loop that forces use of all patients
+
+local byvar spot_sample
 * Think of these as the gap row headings
-local super_vars by_vars patient_vars timing_vars site_vars
-local by_vars time2icu
-local patient_vars 	age male icnarc0 periarrest sepsis_b ///
-	v_ccmds ccmds_delta rxlimits ///
-	sofa_score news_score
-local timing_vars	out_of_hours weekend beds_none
-local site_vars		ccot_hrs_perweek hes_overnight hes_emergx patients_perhesadmx
+local super_vars sepsis cardiovascular respiratory ///
+	renal neurological laboratory
+
+local cardiovascular hrate hsinus bpsys bpmap rxcvs
+local renal uvol1h creatinine urea rxrrt
+local respiratory rrate spo2 fio2_std rx_resp
+local neurological gcst
+local laboratory ph pf paco2 hco3 lactate wcc platelets sodium bili
 
 * This is the layout of your table by sections
 local table_vars ///
-	`by_vars' ///
-	`patient_vars' ///
-	`timing_vars' ///
-	`site_vars'
-
+	periarrest ///
+	temperature ///
+	`cardiovascular' ///
+	`respiratory' ///
+	`renal' ///
+	`neurological' ///
+	`laboratory'
 
 * Specify the type of variable
-local norm_vars icnarc0 age hes_overnight hes_emergx patients_perhesadmx sofa_score news_score
-local skew_vars ccot_hrs_perweek time2icu
+local norm_vars age
+local skew_vars spo2 fio2_std uvol1h creatinine urea gcst ///
+	hrate bpsys bpmap rrate temperature ///
+	`laboratory'
 local range_vars
-local bin_vars male periarrest sepsis_b rxlimits out_of_hours weekend beds_none
-local cat_vars v_ccmds ccmds_delta
-
+local bin_vars male periarrest delayed_referral hsinus rxrrt ///
+	rxlimits
+local cat_vars v_ccmds vitals sepsis rxcvs rx_resp avpu sepsis_site ///
+	rx_visit ccmds_delta v_decision
 
 * CHANGED: 2013-02-05 - use the gap_here indicator to add gaps
 * these need to be numbered as _1 etc
 * Define the order of vars in the table
 global table_order ///
-	time2icu gap_here_1 ///
-	age male periarrest sepsis_b ///
-	v_ccmds ccmds_delta rxlimits gap_here_2 ///
-	icnarc0 sofa_score news_score gap_here_3 ///
-	out_of_hours weekend beds_none gap_here_4 ///
-	ccot_hrs_perweek hes_overnight hes_emergx patients_perhesadmx
+	periarrest gap_here ///
+	temperature wcc gap_here ///
+	hrate hsinus bpsys bpmap gap_here ///
+	rxcvs gap_here ///
+	rrate spo2 fio2_std gap_here ///
+	rx_resp gap_here ///
+	gcst ///
+	uvol1h creatinine urea gap_here ///
+	rxrrt gap_here ///
+	ph pf paco2 hco3 lactate gap_here ///
+	platelets sodium bili
 
+* number the gaps
+local i = 1
+local table_order
+foreach word of global table_order {
+	if "`word'" == "gap_here" {
+		local w `word'_`i'
+		local ++i
+	}
+	else {
+		local w `word'
+	}
+	local table_order `table_order' `w'
+}
+global table_order `table_order'
 
 tempname pname
 tempfile pfile
@@ -94,7 +195,7 @@ foreach lvl of local bylevels {
 	keep if `byvar' == `lvl'
 	local lvl_label: label (`byvar') `lvl'
 	local lvl_labels `lvl_labels' `lvl_label'
-	count 
+	count
 	local grp_sizes `grp_sizes' `=r(N)'
 	local table_order 1
 	foreach var of local table_vars {
@@ -350,21 +451,18 @@ chardef tablerowlabel vcentral_fmt, ///
 *  = Prepare super categories =
 *  ============================
 local j = 1
-foreach word of global lvl_labels {
-	local bytext: word `j' of $lvl_labels
-	local super_heading1 "`super_heading1' & \multicolumn{2}{c}{`bytext'} "
+foreach word of global grp_sizes {
 	local grp_size: word `j' of $grp_sizes
 	local grp_size: di %9.0gc `grp_size'
-	local grp_size "`grp_size' patients"
-	local super_heading2 "`super_heading2' & \multicolumn{2}{c}{`grp_size'} "
+	local grp_size_`j' "`grp_size'"
 	local ++j
 }
 * NOTE: 2013-02-05 - you have an extra & at the beginning but this is OK as covers parameters
-local super_heading1 " `super_heading1' \\"
-local super_heading2 " `super_heading2' \\"
+local super_heading1 & \multicolumn{2}{c}{All study patients}  & \multicolumn{2}{c}{Assessed patients}  \\
+local super_heading2 & \multicolumn{2}{c}{`grp_size_1' patients}  & \multicolumn{2}{c}{`grp_size_2' patients} \\
 
 * Prepare sub-headings
-local sub_heading "Mean/Median/Count (SD/IQR/\%)"
+* local sub_heading "Mean/Median/Count (SD/IQR/\%)"
 * CHANGED: 2013-02-07 - drop parameter from column heading and leave blank
 * - if needed then Characteristic is preferred
 * local sub_heading "& \multicolumn{2}{c}{`sub_heading'} &  \multicolumn{2}{c}{`sub_heading'} \\"
@@ -379,7 +477,7 @@ order seq tablerowlabel vcentral_fmt0 vbracket0 vcentral_fmt1 vbracket1
 save ../data/scratch/scratch.dta, replace
 clear
 local table_order $table_order
-local obs = wordcount("`table_order'") + 1
+local obs = wordcount("`table_order'")
 set obs `obs'
 gen design_order = .
 gen varname = ""
@@ -433,9 +531,9 @@ if `append_statistic_type' {
 }
 
 
-local justify X[6l]X[r]X[1.5l]X[r]X[1.5l]
+local justify X[6l]X[r]X[2l]X[r]X[2l]
 local tablefontsize "\scriptsize"
-local arraystretch 1.1
+local arraystretch 1.0
 local taburowcolors 2{white .. white}
 /*
 Use san-serif font for tables: so \sffamily {} enclosed the whole table
@@ -449,7 +547,7 @@ listtab tablerowlabel `nonrowvars'  ///
 		"\renewcommand{\arraystretch}{`arraystretch'}" ///
 		"\taburowcolors `taburowcolors'" ///
 		"\sffamily{" ///
-		"\begin{tabu} to " ///
+		"\begin{tabu} spread " ///
 		"\textwidth {`justify'}" ///
 		"\toprule" ///
 		"`super_heading1'" ///
