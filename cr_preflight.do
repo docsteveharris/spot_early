@@ -107,6 +107,8 @@ xtile count_patients_q5 = count_patients, nq(5)
 * Now inspect key variables by sample
 gen time2icu = floor(hours(icu_admit - v_timestamp))
 * TODO: 2012-10-02 - this should not be necessary!!
+count if time2icu < 0
+di as error "=`r(N)' patients found where ICU admission occured before ward visit"
 replace time2icu = 0 if time2icu < 0
 label var time2icu "Time to ICU (hrs)"
 
@@ -137,13 +139,14 @@ tab ccmds_delta
 tab v_disp, miss
 cap drop cc_decision
 gen cc_decision = .
-replace cc_decision = 0 if inlist(v_disposal,6,7)
-replace cc_decision = 1 if inlist(v_disposal,3,4)
-replace cc_decision = 2 if inlist(v_disposal,1,2)
+replace cc_decision = 0 if inlist(v_disposal,5,6)
+replace cc_decision = 1 if inlist(v_disposal,1,2)
+replace cc_decision = 2 if inlist(v_disposal,3,4)
 label define cc_decision ///
 	0 "No ward follow-up planned" ///
-	0 "Ward follow-up planned" ///
-	0 "Accepted to Critical care"
+	1 "Ward follow-up planned" ///
+	2 "Accepted to Critical care"
+label values cc_decision cc_decision
 tab cc_decision
 
 tab cc_decision cc_recommended, col row
@@ -182,7 +185,7 @@ replace last_trace = icu_discharge if dead_icu == 1 & !missing(icu_discharge)
 format last_trace %tc
 label var last_trace "Timestamp last event"
 
-gen male=sex==2
+gen male=sex==1
 label var male "Sex"
 label define male 0 "Female" 1 "Male"
 label values male male
@@ -205,25 +208,26 @@ cap drop sepsis_dx
 gen sepsis_dx = 0
 replace sepsis_dx = 1 if sepsis_b
 replace sepsis_dx = 2 if sepsis_b & sepsis_site == 5
-replace sepsis_dx = 3 if sepsis_b & sepsis_site == 4
-replace sepsis_dx = 4 if sepsis_b & sepsis_site == 9
+replace sepsis_dx = 3 if sepsis_b & sepsis_site == 3
+replace sepsis_dx = 4 if sepsis_b & sepsis_site == 1
 label var sepsis_dx "Sepsis diagnosis"
 label define sepsis_dx 0 "Not septic" 1 "Unspecified sepsis" 2 "GU sepsis" 3 "GI sepsis" 4 "Chest sepsis"
 label values sepsis_dx sepsis_dx
 tab sepsis_dx
 
 cap drop periarrest
-gen periarrest = inlist(v_arrest,1,3,4)
+gen periarrest = v_arrest == 1
+label values periarrest truefalse
 
 cap drop vitals1
-gen vitals1 = inlist(vitals,1,3)
+gen vitals1 = inlist(vitals,5,4)
 label var vitals1 "Intensive ward obs"
 label values vitals1 truefalse
 tab vitals1
 // Collapse vitals down into simple list
-replace vitals = 5 if inlist(vitals,2,4)
+replace vitals = 3 if inlist(vitals,1,2)
 
-gen rxlimits = inlist(v_disposal,4,7)
+gen rxlimits = inlist(v_disposal,2,6)
 label var rxlimits "Treatment limits at visit end"
 label values rxlimits truefalse
 
@@ -274,25 +278,26 @@ label var icnarc_q10 "ICNARC acute physiology deciles"
 label values icnarc_q* quantiles
 
 egen time2icu_cat = cut(time2icu), at(0,4,12,24,36,72,168,672) label
-replace time2icu_cat = 999 if time2icu == .
+* CHANGED: 2013-02-08 - better to code this as per a spike at zero approach
+* replace time2icu_cat = 999 if time2icu == .
 
 gen abg = !missing(abgunit)
 label var abg "Arterial blood gas measurement"
 label values abg truefalse
 
-gen 	rxcvs = 0 if rxcvs_sofa == 3
-replace rxcvs = 1 if rxcvs_sofa == 6
-replace rxcvs = 2 if inlist(rxcvs_sofa,1,2,5,4)
+gen 	rxcvs = 0 if rxcvs_sofa == 0
+replace rxcvs = 1 if rxcvs_sofa == 1
+replace rxcvs = 2 if inlist(rxcvs_sofa,2,3,4,5)
 label var rxcvs "Cardiovascular support"
 label define rxcvs 0 "None" 1 "Volume resusciation" 2 "Vasopressor/Inotrope"
 label values rxcvs rxcvs
 
-gen pf = pf_ratio / 7.6
+gen pf = round(pf_ratio / 7.6)
 label var pf "PF ratio (kPa)"
 
 gen rx_resp = 0
-replace rx_resp = 1 if inlist(rxfio2,5,7,8)
-replace rx_resp = 2 if inlist(rxfio2,1,3)
+replace rx_resp = 1 if inlist(rxfio2,1,2,3)
+replace rx_resp = 2 if inlist(rxfio2,4,5)
 label var rx_resp "Respiratory support"
 label define rx_resp 0 "None" 1 "Supplemental oxygen" 2 "NIV"
 label values rx_resp rx_resp
@@ -457,11 +462,12 @@ label define pt_cat 1 "Treatment limits" 2 "At risk" 3 "Low risk"
 label values pt_cat pt_cat
 tab pt_cat
 
+cap drop v_decision
 gen v_decision = .
-replace v_decision = 0 if inlist(v_disposal,6,7)
-replace v_decision = 1 if inlist(v_disposal,3,4)
-replace v_decision = 2 if inlist(v_disposal,1)
-replace v_decision = 3 if inlist(v_disposal,2)
+replace v_decision = 0 if inlist(v_disposal,5,6)
+replace v_decision = 1 if inlist(v_disposal,1,2)
+replace v_decision = 2 if inlist(v_disposal,3)
+replace v_decision = 3 if inlist(v_disposal,4)
 label var v_decision "Decision after bedside assessment"
 label define v_decision ///
 	0 "No review planned" ///
@@ -470,7 +476,7 @@ label define v_decision ///
 	3 "Accepted to Level 3 bed"
 label values v_decision v_decision
 
-gen icu_accept = inlist(v_disposal,1,2)
+gen icu_accept = inlist(v_disposal,3,4)
 label var icu_accept "Accepted to critical care"
 gen icu_recommend =  inlist(v_ccmds_rec,2,3)
 label var icu_recommend "Recommended for critical care"
