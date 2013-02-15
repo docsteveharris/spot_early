@@ -4,7 +4,7 @@
 
 
 * CHANGED: 2013-02-05 - now will run on any given data set
-local clean_run 0
+local clean_run 1
 if `clean_run' == 1 {
 	clear
 	use ../data/working.dta, clear
@@ -97,7 +97,7 @@ reshape long dt, i(id) j(event)
 * gen dt1_hrs = floor(hours(dt1))
 
 cap drop dt1
-gen dt1 = hours(dt - v_timestamp)/24
+gen dt1 = floor(hours(dt - v_timestamp))/24
 order dt1, after(event)
 label var dt1 "Event (days after visit)"
 
@@ -134,8 +134,8 @@ Need to convert icu_discharge and icu_admit into the day.hours metric for compar
 Do this by creating icu_in and icu_out vars: a bit long winded but seems to avoid rounding errors
 */
 cap drop icu_in icu_out
-gen icu_in = hours(icu_admit - v_timestamp)/24
-gen icu_out = hours(icu_discharge - v_timestamp)/24
+gen icu_in = floor(hours(icu_admit - v_timestamp))/24
+gen icu_out = floor(hours(icu_discharge - v_timestamp))/24
 order icu_in icu_out, after(v_timestamp)
 cap drop icu
 gen icu = 0
@@ -150,7 +150,7 @@ label values icu truefalse
 * Make sure dead only available for the last event
 bys id (event): replace dead = . if _n != _N
 
-drop dups1 dups2 icu_in icu_out
+drop dups1 dups2
 *  ==================
 *  = STSET the data =
 *  ==================
