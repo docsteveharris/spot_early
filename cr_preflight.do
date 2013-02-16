@@ -108,7 +108,7 @@ xtile count_patients_q5 = count_patients, nq(5)
 gen time2icu = floor(hours(icu_admit - v_timestamp))
 * TODO: 2012-10-02 - this should not be necessary!!
 count if time2icu < 0
-di as error "=`r(N)' patients found where ICU admission occured before ward visit"
+di as error "`=r(N)' patients found where ICU admission occured before ward visit"
 replace time2icu = 0 if time2icu < 0
 label var time2icu "Time to ICU (hrs)"
 

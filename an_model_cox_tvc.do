@@ -17,6 +17,7 @@ else {
 	use ../data/working_survival.dta
 	st
 }
+est drop _all
 
 /*
 Independent vars
@@ -25,18 +26,18 @@ Independent vars
 */
 
 set seed 3001
-keep id event v_timestamp icu_admit icu_discharge date_trace dead ///
-	 dt0 dt1 _t0 _t _st _d dt0 dt1 ///
-	 icode idvisit  ppsample ///
-	 dead28 ///
-	 sex male age age_k age_c ///
-	 icnarc0 icnarc0_c icnarc_q5 ///
-	 sepsis_dx ///
-	 v_ccmds ccmds_delta v_decision ///
-	 periarrest ///
-	 temperature wcc ///
-	 lactate ///
-	 time2icu early4
+* keep id event v_timestamp icu_admit icu_discharge date_trace dead ///
+* 	 dt0 dt1 _t0 _t _st _d dt0 dt1 ///
+* 	 icode idvisit  ppsample ///
+* 	 dead28 ///
+* 	 sex male age age_k age_c ///
+* 	 icnarc0 icnarc0_c icnarc_q5 ///
+* 	 sepsis_dx ///
+* 	 v_ccmds ccmds_delta v_decision ///
+* 	 periarrest ///
+* 	 temperature wcc ///
+* 	 lactate ///
+* 	 time2icu early4
 
 
 cap drop ccmds_now
@@ -47,10 +48,20 @@ label define ccmds_now 0 "" 1 "Level 0/1", modify
 label values ccmds_now ccmds_now
 tab ccmds_now
 
+// fracpoly can't handle factor variables so generate your own
+cap drop ccn_* ccd_* vd_* sp_*
+tab ccmds_now, gen(ccn_)
+tab ccmds_delta, gen(ccd_)
+tab v_decision, gen(vd_)
+tab sepsis_dx, gen(sp_)
+
+save ../data/scratch/scratch.dta, replace
+use ../data/scratch/scratch.dta, clear
+
 *  ====================
 *  = Modelling checks =
 *  ====================
-local prechecks 1
+local prechecks 0
 if `prechecks' {
 
 	*  =======================
@@ -94,13 +105,12 @@ stcox, estimate nolog noshow
 est store baseline
 estimates stats baseline
 
-// time fixed
+// time fixed confounders
 stcox age_c male ib0.sepsis_dx, nolog noshow
 est store time_fixed
 estimates stats baseline time_fixed
 
 // location
-// collapse v_ccmds 1 & 2
 tab v_ccmds dead28, missing row
 stcox i.v_ccmds, nolog noshow
 est store A
@@ -150,6 +160,7 @@ stcox ///
 estimates store full
 estimates stats baseline time_fixed location plan severity full
 
+
 // assess early
 stcox ///
 	age_c male ib0.sepsis_dx icnarc0_c  ///
@@ -178,13 +189,17 @@ estimates store B
 estimates stats A B
 estimates table A B, b(%9.3f) star eform
 
-// fracpoly
-tab ccmds_now, gen(ccn_)
-tab ccmds_delta, gen(ccd_)
-tab v_decision, gen(vd_)
-tab sepsis_dx, gen(sp_)
+// inspect the effect of early admission at different levels of severity
+lincom 1.icnarc_q5#1.early4 + 1.early4  , eform
+lincom 2.icnarc_q5#1.early4 + 1.early4  , eform
+lincom 3.icnarc_q5#1.early4 + 1.early4  , eform
+lincom 4.icnarc_q5#1.early4 + 1.early4  , eform
+lincom 5.icnarc_q5#1.early4 + 1.early4  , eform
 
-fracpoly, center(no) log compare:stcox ///
+// fracpoly
+
+// check functional form for severity
+fracpoly, center(no) compare:stcox ///
 	icnarc0_c early4 ///
 	age_c male ///
 	sp_2-sp_5 ///
@@ -195,71 +210,17 @@ fracpoly, center(no) log compare:stcox ///
 	, ///
 	noshow nolog
 
-fracgen icnarc0_c .5, center(no)
-stcox ///
-	age_c male ///
-	sp_2-sp_5 ///
-	ccn_2 ccn_3 ///
-	ccd_1 ccd_3 ///
-	vd_2-vd_4 ///
-	c.icnarc_1##i.early4 ///
-	, ///
-	noshow nolog
+est store full_fp
+fracplot
+estimates stats baseline time_fixed location plan severity full full_fp
+// NOTE: 2013-02-14 - wierd behaviour around zero even though using icnarc0
+// given that this is the only major non-linearity then stick with linear form
+// and marginal benefit in AIC, BIC
 
-
-exit
-use ../data/working_survival.dta, clear
-stsplit tsplit, at(0.25 0.5 1 1.5 2 3 7)
-gen risktime = _t - _t0
-order id event v_timestamp icu_admit icu_discharge date_trace dead dt0 dt1 _t0 _t _st _d icu dt _origin ppsample tsplit risktime
-cap drop icu_time
-gen icu_time = 0
-order icu_time, after(icu)
-bys id (_t0): replace icu_time = sum(risktime) if icu == 1
-cap drop icu_time_max
-bys id (_t0): egen icu_time_max = max(icu_time) if _t <= 3
-cap drop icu_dose_3
-gen icu_dose_3 = 0
-replace icu_dose_3 = icu_time_max
-bys id (_t0): replace icu_dose_3 = cond(_t <= 3 , icu_time, icu_time_max)
-order icu_dose_3 , after(icu_time)
-
-stcox ///
-	age_c male ib0.sepsis_dx ///
-	ib1.ccmds_now ib2.ccmds_delta ib1.v_decision ///
-	ib3.icnarc_q5 early4 ///
-	, ///
-	noshow nolog
-
-stcox ///
-	age_c male ib0.sepsis_dx ///
-	ib1.ccmds_now ib2.ccmds_delta ib1.v_decision ///
-	ib3.icnarc_q5 icu_dose_3 ///
-	, ///
-	noshow nolog
-
-stcox ///
-	age_c male ib0.sepsis_dx ///
-	ib1.ccmds_now ib2.ccmds_delta ib1.v_decision ///
-	ib3.icnarc_q5##c.icu_dose_3 ///
-	, ///
-	noshow nolog
-
-// fracpoly
-tab ccmds_now, gen(ccn_)
-tab ccmds_delta, gen(ccd_)
-tab v_decision, gen(vd_)
-tab sepsis_dx, gen(sp_)
-
-fracpoly, compare:stcox ///
-	icu_dose_3 icnarc0_c  ///
-	age_c male ///
-	sp_2-sp_5 ///
-	ccn_2 ccn_3 ///
-	ccd_1 ccd_3 ///
-	vd_2-vd_4 ///
-	///
-	, ///
-	noshow nolog
+*  ===============================================
+*  = Now examine ICU dose using the TVC approach =
+*  ===============================================
+* NOTE: 2013-02-16 - all of this code currently being developed in the labbook
+* Commited as 0500277ae05898b30da61bcbf6d6f94dec1dccbe
 
 cap log close
