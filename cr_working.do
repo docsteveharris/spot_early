@@ -100,7 +100,7 @@ count if included_months == 1 & include == 1
 * Pool of patients after initial 3 month screening check
 /*
 CHANGED: 2013-01-07
-- permit through sites where the overall quality is good (late improvers) 
+- permit through sites where the overall quality is good (late improvers)
 */
 replace include = 0 if ///
 	(site_quality_q1 < 80 | site_quality_q1 == .) ///
@@ -128,6 +128,10 @@ count if include == 1 & all_cc_in_cmp == 0 & exclude1 == 0
 count if include == 1 & tails_othercc != 0 & exclude1 == 0
 count if include == 1 & loca == 1 & exclude1 == 0
 count if include == 1 & inlist(v_disposal, 2, 6) & exclude1 == 0
+* CHANGED: 2013-02-16 - also excluded arrests and deaths
+count if include == 1 & inlist(v_arrest, 2, 3) & exclude1 == 0
+count if include == 1 & inlist(v_disposal, 7) & exclude1 == 0
+
 
 replace exclude1 = 1 if include == 1 & elgfirst_episode == 0
 replace exclude1 = 1 if include == 1 & withinsh == 1
@@ -136,10 +140,12 @@ replace exclude1 = 1 if include == 1 & elgreport_tails == 0
 * CHANGED: 2013-02-06 - drop patients admitted via theatre
 replace exclude1 = 1 if include == 1 & loca == 1
 * CHANGED: 2013-02-08 - drop patients with treatment limits
-replace exclude1 = 1 if include == 1 & inlist(v_disposal, 2, 6) 
+replace exclude1 = 1 if include == 1 & inlist(v_disposal, 2, 6)
+replace exclude1 = 1 if include == 1 & inlist(v_disposal, 7)
+replace exclude1 = 1 if include == 1 & inlist(v_arrest, 2, 3)
 * CHANGED: 2013-02-06 - drop sites with non-CMP critical care areas
 replace exclude1 = 1 if all_cc_in_cmp == 0
-* CHANGED: 2013-02-06 - drop sites with admissions reported to CMP units 
+* CHANGED: 2013-02-06 - drop sites with admissions reported to CMP units
 * via other non-CMP areas
 replace exclude1 = 1 if tails_othercc != 0
 tab exclude1 if include == 1
