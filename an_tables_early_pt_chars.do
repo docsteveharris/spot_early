@@ -472,7 +472,11 @@ if `append_statistic_type' {
 }
 
 
+<<<<<<< HEAD
 local justify X[6l]X[r]X[2l]X[r]X[2l]
+=======
+local justify X[6l]X[r]X[1.5l]X[r]X[1.5l]
+>>>>>>> refs/heads/_baseline_tables_spot_early-merged130208
 local tablefontsize "\scriptsize"
 local arraystretch 1.0
 local taburowcolors 2{white .. white}
