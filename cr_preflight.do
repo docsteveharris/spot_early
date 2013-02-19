@@ -506,21 +506,23 @@ label var full_active1 "No more than 1 dischargeable patient"
 gen open_beds_cmp = (cmp_beds_max - occupancy_active)
 label var open_beds_cmp "Open beds with respect to CMP reported number"
 
-gen bed_pressure = .
-label var bed_pressure "Available critical care beds"
-replace bed_pressure = 2 if open_beds_cmp <= 0
-replace bed_pressure = 1 if open_beds_cmp >= 1
-replace bed_pressure = 0 if open_beds_cmp >= 2
-label define bed_pressure 0 "2 or more beds"
-label define bed_pressure 1 "1 bed only", add
-label define bed_pressure 2 "No beds", add
-label values bed_pressure bed_pressure
-
-
 gen beds_none = open_beds_cmp <= 0
 label var beds_none "Critical care unit full"
 label values beds_none truefalse
 
+gen beds_blocked = cmp_beds_max - occupancy <= 0
+label var beds_blocked "Critical care unit unable to discharge"
+label values beds_blocked truefalse
+
+cap drop bed_pressure
+gen bed_pressure = 0
+label var bed_pressure "Bed pressure"
+replace bed_pressure = 1 if beds_blocked == 1
+replace bed_pressure = 2 if beds_none == 1
+label define bed_pressure 0 "Beds available"
+label define bed_pressure 1 "No beds but discharges pending", add
+label define bed_pressure 2 "No beds and no discharges pending", add
+label values bed_pressure bed_pressure
 *  ============================================
 *  = Prep vars in standardised way for models =
 *  ============================================
