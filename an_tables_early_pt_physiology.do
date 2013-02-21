@@ -134,10 +134,30 @@ local skew_vars spo2 fio2_std uvol1h creatinine urea gcst ///
 	hrate bpsys bpmap rrate temperature ///
 	`laboratory'
 local range_vars
-local bin_vars male periarrest delayed_referral hsinus rxrrt ///
-	rxlimits
+* local bin_vars male periarrest delayed_referral hsinus rxrrt ///
+* 	rxlimits
 local cat_vars v_ccmds vitals sepsis rxcvs rx_resp avpu sepsis_site ///
-	rx_visit ccmds_delta v_decision
+	rx_visit ccmds_delta v_decision ///
+	periarrest hsinus rxrrt
+
+*  ==============================
+*  = Set up sparkline variables =
+*  ==============================
+* sparks = number of bars
+local sparks 12
+* sparkwidth = number of x widths for sparkline plot
+local sparkwidth 8
+global sparkspike_width 1.5
+local sparkspike_vars ///
+	temperature wcc hrate bpsys bpmap rrate spo2 fio2_std ///
+	uvol1h creatinine urea ///
+	ph pf paco2 hco3 lactate platelets sodium bili
+* Use fat 2 point sparkline for horizontal bars (default 0.2pt)
+local sparkhbar_width 3pt
+local sparkhbar_vars ///
+	male periarrest hsinus rxrrt ///
+	v_ccmds vitals rxcvs rx_resp
+
 
 * CHANGED: 2013-02-05 - use the gap_here indicator to add gaps
 * these need to be numbered as _1 etc
@@ -185,7 +205,9 @@ postfile `pname' ///
 	double 	vmin ///
 	double 	vmax ///
 	double 	vother ///
+	str244	sparkspike ///
 	using `pfile' , replace
+
 
 tempfile working
 save `working', replace
@@ -198,6 +220,7 @@ foreach lvl of local bylevels {
 	count
 	local grp_sizes `grp_sizes' `=r(N)'
 	local table_order 1
+	local sparkspike = ""
 	foreach var of local table_vars {
 		local varname `var'
 		local varlabel: variable label `var'
@@ -236,6 +259,13 @@ foreach lvl of local bylevels {
 			local vmax		= .
 			su `var'
 			local vother 	= r(mean) * 100
+			// sparkhbar routine
+			local check_in_list: list posof "`var'" in sparkhbar_vars
+			if `check_in_list' > 0 {
+				local x : di %9.2f `=r(mean)'
+				local x = trim("`x'")
+				local sparkspike "\setlength{\sparklinethickness}{`sparkhbar_width'}\begin{sparkline}{`sparkwidth'}\spark 0.0 0.5 `x' 0.5 / \end{sparkline}\setlength{\sparklinethickness}{0.2pt}"
+			}
 		}
 
 		local check_in_list: list posof "`var'" in skew_vars
@@ -258,6 +288,35 @@ foreach lvl of local bylevels {
 			local vother 	= .
 		}
 
+
+		// sparkspike routine
+		local check_in_list: list posof "`var'" in sparkspike_vars
+		if `check_in_list' > 0 {
+			local sparkspike = ""
+			cap drop kd kx kx20 kdmedian
+			kdensity `var', gen(kx kd) nograph
+			// normalise over the [0,1] scale
+			qui su kd
+			replace kd = kd / r(max)
+			egen kx20 = cut(kx), group(20)
+			replace kx20 = kx20 + 1
+			bys kx20: egen kdmedian = median(kd)
+			local sparkspike "\begin{sparkline}{`sparkwidth'}\renewcommand*{\do}[1]{\sparkspike #1 }\docsvlist{"
+			forvalues k = 1/`sparks' {
+				// hack to get the kdmedian value
+				qui su kdmedian if kx20 == `k', meanonly
+				local spike : di %9.2f `=r(mean)'
+				local spike = trim("`spike'")
+				local x = `k' / `sparks'
+				local x : di %9.2f `x'
+				local x = trim("`x'")
+				local sparkspike "`sparkspike'{`x' `spike'}"
+				// add a comma if not the end of the list
+				if `k' != `sparks' local sparkspike "`sparkspike',"
+			}
+			local sparkspike "`sparkspike'}\end{sparkline}"
+		}
+
 		local check_in_list: list posof "`var'" in cat_vars
 		if `check_in_list' == 0 {
 			post `pname' ///
@@ -272,7 +331,8 @@ foreach lvl of local bylevels {
 				(`vcentral') ///
 				(`vmin') ///
 				(`vmax') ///
-				(`vother')
+				(`vother') ///
+				("`sparkspike'")
 
 			local table_order = `table_order' + 1
 			continue
@@ -297,6 +357,14 @@ foreach lvl of local bylevels {
 			local vmin		= .
 			local vmax		= .
 			local vother 	= vother[`i']
+			// sparkhbar routine
+			local check_in_list: list posof "`var'" in sparkhbar_vars
+			if `check_in_list' > 0 {
+				local x = `vother' / 100
+				local x : di %9.2f `x'
+				local x = trim("`x'")
+				local sparkspike "\setlength{\sparklinethickness}{`sparkhbar_width'}\begin{sparkline}{`sparkwidth'}\spark 0.0 0.5 `x' 0.5 / \end{sparkline}\setlength{\sparklinethickness}{0.2pt}"
+			}
 
 		post `pname' ///
 			(`lvl') ///
@@ -310,7 +378,8 @@ foreach lvl of local bylevels {
 			(`vcentral') ///
 			(`vmin') ///
 			(`vmax') ///
-			(`vother')
+			(`vother') ///
+			("`sparkspike'")
 
 
 		local table_order = `table_order' + 1
@@ -441,25 +510,12 @@ listtab_vars tablerowlabel vcentral_fmt vbracket, ///
 *  = Now convert to wide format =
 *  ==============================
 keep bylevel table_order tablerowlabel vcentral_fmt vbracket seq ///
-	varname var_type var_label var_level_lab var_level
+	varname var_type var_label var_level_lab var_level sparkspike
 
 chardef tablerowlabel vcentral_fmt, ///
 	char(varname) prefix("\textit{") suffix("}") ///
 	values("Parameter" "Value")
 
-*  ============================
-*  = Prepare super categories =
-*  ============================
-local j = 1
-foreach word of global grp_sizes {
-	local grp_size: word `j' of $grp_sizes
-	local grp_size: di %9.0gc `grp_size'
-	local grp_size_`j' "`grp_size'"
-	local ++j
-}
-* NOTE: 2013-02-05 - you have an extra & at the beginning but this is OK as covers parameters
-local super_heading1 & \multicolumn{2}{c}{All study patients}  & \multicolumn{2}{c}{Assessed patients}  \\
-local super_heading2 & \multicolumn{2}{c}{`grp_size_1' patients}  & \multicolumn{2}{c}{`grp_size_2' patients} \\
 
 * Prepare sub-headings
 * local sub_heading "Mean/Median/Count (SD/IQR/\%)"
@@ -467,7 +523,7 @@ local super_heading2 & \multicolumn{2}{c}{`grp_size_1' patients}  & \multicolumn
 * - if needed then Characteristic is preferred
 * local sub_heading "& \multicolumn{2}{c}{`sub_heading'} &  \multicolumn{2}{c}{`sub_heading'} \\"
 
-xrewide vcentral_fmt vbracket , ///
+xrewide vcentral_fmt vbracket sparkspike, ///
 	i(seq) j(bylevel) ///
 	lxjk(nonrowvars)
 
@@ -530,11 +586,39 @@ if `append_statistic_type' {
 	replace tablerowlabel = tablerowlabel + " `n_percent'" if gaprow == 1
 }
 
+*  ============================
+*  = Prepare super categories =
+*  ============================
+local j = 1
+foreach word of global grp_sizes {
+	local grp_size: word `j' of $grp_sizes
+	local grp_size: di %9.0gc `grp_size'
+	local grp_size_`j' "`grp_size'"
+	local ++j
+}
+* NOTE: 2013-02-05 - you have an extra & at the beginning but this is OK as covers parameters
+local super_heading1 & \multicolumn{2}{c}{All study patients}  & \multicolumn{2}{c}{Assessed patients}  \\
+local super_heading2 & \multicolumn{2}{c}{`grp_size_1' patients}  & \multicolumn{2}{c}{`grp_size_2' patients} \\
 
 local justify X[6l]X[r]X[2l]X[r]X[2l]
 local tablefontsize "\scriptsize"
 local arraystretch 1.0
 local taburowcolors 2{white .. white}
+// switch on sparklines?
+local sparklines_on = 1
+if `sparklines_on' {
+	local nonrowvars `nonrowvars' 
+	local sparkspike_width "\renewcommand\sparkspikewidth{$sparkspike_width}"
+	local justify X[6l]X[r]X[2l]X[2l]X[r]X[2l]X[2l]
+	local sparkspike_colour "\definecolor{sparkspikecolor}{gray}{0.7}"
+	local sparkline_colour "\definecolor{sparklinecolor}{gray}{0.7}"
+	local super_heading1 & \multicolumn{3}{c}{All study patients}  & \multicolumn{3}{c}{Assessed patients}  \\
+	local super_heading2 & \multicolumn{3}{c}{`grp_size_1' patients}  & \multicolumn{3}{c}{`grp_size_2' patients} \\
+}
+else {
+	local x sparkspike1 sparkspike2
+	local nonrowsvars: list nonrowsvars - x
+}
 /*
 Use san-serif font for tables: so \sffamily {} enclosed the whole table
 Add a label to the table at the end for cross-referencing
@@ -546,6 +630,9 @@ listtab tablerowlabel `nonrowvars'  ///
 		"`tablefontsize'" ///
 		"\renewcommand{\arraystretch}{`arraystretch'}" ///
 		"\taburowcolors `taburowcolors'" ///
+		"`sparkspike_width'" ///
+		"`sparkspike_colour'" ///
+		"`sparkline_colour'" ///
 		"\sffamily{" ///
 		"\begin{tabu} spread " ///
 		"\textwidth {`justify'}" ///
