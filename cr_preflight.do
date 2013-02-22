@@ -6,8 +6,9 @@
 * be needed to work out occupancy and ccot shift patterns
 
 
-local debug = 1
-
+local debug = 0
+// override local debug settings
+if $debug == 0 local debug = 0
 if `debug' {
 	use ../data/working.dta, clear
 
@@ -16,6 +17,7 @@ if `debug' {
 cap label drop truefalse
 label define truefalse 0 "False" 1 "True"
 
+cap label drop quantiles
 label define quantiles 1 "1st"
 label define quantiles 2 "2nd", add
 label define quantiles 3 "3rd", add
