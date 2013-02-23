@@ -178,14 +178,6 @@ label define route_to_icu ///
 label values route_to_icu route_to_icu
 label var route_to_icu "ICU admission pathway"
 
-* NOTE: 2012-09-27 - get more precise survival timing for those who die in ICU
-* Add one hour though else ICU discharge and last_trace at same time
-* this would mean these records being dropped by stset
-* CHANGED: 2012-10-02 - changed to 23:59:00 from 23:59:59 because of rounding errors
-gen double last_trace = cofd(date_trace) + hms(23,58,00)
-replace last_trace = icu_discharge if dead_icu == 1 & !missing(icu_discharge)
-format last_trace %tc
-label var last_trace "Timestamp last event"
 
 gen male=sex==1
 label var male "Sex"
