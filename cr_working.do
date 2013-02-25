@@ -199,11 +199,14 @@ replace exclude4 = 1 if missing(dead)
 sort dorisname
 di as error "NOTE: 2013-01-29 - 23 ICU deaths not found in MRIS"
 tab dead dead_icu
-list dorisname dead_icu dead if dead_icu == 1 & dead == 0, sepby(dorisname)
+list dorisname dead_icu dead if dead_icu == 1 & dead == 0 ///
+	& include == 1 & exclude1 == 0 & exclude2 == 0 & exclude3 ==0 & missing(date_trace) == 1 ///
+		, sepby(dorisname)
 
 * TODO: 2013-01-29 - check for mismatched dates of death
 list dorisname dead_icu ddicu date_trace ///
-	if icu_discharge != date_trace  & ddicu != . & dead_icu == 1 & dead == 1
+	if icu_discharge != date_trace  & ddicu != . & dead_icu == 1 & dead == 1 & ///
+	& include == 1 & exclude1 == 0 & exclude2 == 0 & exclude3 ==0 & missing(date_trace) == 1 ///
 
 * drop these for now
 replace exclude4 = 1 if dead_icu == 1 & dead == 0
@@ -212,6 +215,7 @@ replace exclude4 = 1 if dead_icu == 1 & dead == 0
 * of which one has a mismatched death
 list dorisname dead dead_icu ddicu date_trace ///
 	if dofC(icu_discharge) != date_trace & dead_icu == 1 & dead !=. ///
+	& include == 1 & exclude1 == 0 & exclude2 == 0 & exclude3 ==0 & missing(date_trace) == 1 ///
 	, sepby(dorisname)
 * replace ddicu with date_trace + 23hrs and 59mins in these patients
 replace icu_discharge = dhms(date_trace,0,0,0) ///
@@ -232,12 +236,14 @@ count if floor(hours(icu_admit))		> floor(hours(icu_discharge)) 	& !missing(icu_
 count if floor(hours(v_timestamp))		> floor(hours(icu_admit)) 		& !missing(v_timestamp, icu_admit)
 list icode v_timestamp icu_admit ///
 	if floor(hours(v_timestamp))		> floor(hours(icu_admit)) 		& !missing(v_timestamp, icu_admit) ///
+	& include == 1 & exclude1 == 0 & exclude2 == 0 & exclude3 ==0 & missing(date_trace) == 1 ///
 	, sepby(icode)
 count if floor(hours(v_timestamp)) 		> floor(hours(icu_discharge)) 	& !missing(v_timestamp, icu_discharge)
 count if floor(hours(icu_admit)) 		> floor(hours(last_trace)) 		& !missing(icu_admit, last_trace)
 count if floor(hours(icu_discharge))	> floor(hours(last_trace)) 		& !missing(icu_discharge, last_trace)
 list icode icu_discharge last_trace ///
 	if floor(hours(icu_discharge))	> floor(hours(last_trace)) 		& !missing(icu_discharge, last_trace) ///
+	& include == 1 & exclude1 == 0 & exclude2 == 0 & exclude3 ==0 & missing(date_trace) == 1 ///
 	, sepby(icode)
 count if floor(hours(v_timestamp)) 		> floor(hours(last_trace)) 		& !missing(v_timestamp, last_trace)
 
