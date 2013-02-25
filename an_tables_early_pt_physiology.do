@@ -7,54 +7,54 @@ Prepare table 1b for chapter that describes patient physiology
 
 
 Cardiovascular physiology
-	Heart rate
-	Sinus rhythm
-	Blood pressure
+    Heart rate
+    Sinus rhythm
+    Blood pressure
 
 Cardiovascular support
-	None
-	Volume resuscitation
-	Vasopressors or inotropes
-	Systolic blood pressure
-	Mean blood pressure
+    None
+    Volume resuscitation
+    Vasopressors or inotropes
+    Systolic blood pressure
+    Mean blood pressure
 
 Respiratory physiology
-	Respiratory rate
-	Oxygen saturations
-	Inspired oxygen
+    Respiratory rate
+    Oxygen saturations
+    Inspired oxygen
 
 Respiratory support
-	None
-	Supplemental oxygen
-	Non-invasive ventilation
-	IPPV
+    None
+    Supplemental oxygen
+    Non-invasive ventilation
+    IPPV
 
 Renal physiology
-	Urine volume
-	Creatinine
-	Urea
-	Renal replacement therapy
+    Urine volume
+    Creatinine
+    Urea
+    Renal replacement therapy
 
 Neurology
-	New confusion
-	GCS
-	Alert
-	Verbal
-	Pain
-	Unresponsive
+    New confusion
+    GCS
+    Alert
+    Verbal
+    Pain
+    Unresponsive
 
 Arterial blood gas
-	Available
-	pH
-	P:F ratio
-	PaCO2
-	HCO3
-	Lactate
+    Available
+    pH
+    P:F ratio
+    PaCO2
+    HCO3
+    Lactate
 
 Other labs
-	Sodium
-	Platelets
-	Bilirubin
+    Sodium
+    Platelets
+    Bilirubin
 
 
 */
@@ -81,9 +81,9 @@ You will need the following columns
 *  ==========================================================================
 local clean_run 1
 if `clean_run' == 1 {
-	clear
-	use ../data/working.dta
-	include cr_preflight.do
+    clear
+    use ../data/working.dta
+    qui include cr_preflight.do
 }
 * this is the spot_early cohort
 use ../data/working_postflight.dta, clear
@@ -110,7 +110,7 @@ tab spot_sample
 local byvar spot_sample
 * Think of these as the gap row headings
 local super_vars sepsis cardiovascular respiratory ///
-	renal neurological laboratory
+    renal neurological laboratory
 
 local cardiovascular hrate hsinus bpsys bpmap rxcvs
 local renal uvol1h creatinine urea rxrrt
@@ -120,25 +120,25 @@ local laboratory ph pf paco2 hco3 lactate wcc platelets sodium bili
 
 * This is the layout of your table by sections
 local table_vars ///
-	periarrest ///
-	temperature ///
-	`cardiovascular' ///
-	`respiratory' ///
-	`renal' ///
-	`neurological' ///
-	`laboratory'
+    periarrest ///
+    temperature ///
+    `cardiovascular' ///
+    `respiratory' ///
+    `renal' ///
+    `neurological' ///
+    `laboratory'
 
 * Specify the type of variable
 local norm_vars age
 local skew_vars spo2 fio2_std uvol1h creatinine urea gcst ///
-	hrate bpsys bpmap rrate temperature ///
-	`laboratory'
+    hrate bpsys bpmap rrate temperature ///
+    `laboratory'
 local range_vars
 * local bin_vars male periarrest delayed_referral hsinus rxrrt ///
-* 	rxlimits
+*   rxlimits
 local cat_vars v_ccmds vitals sepsis rxcvs rx_resp avpu sepsis_site ///
-	rx_visit ccmds_delta v_decision ///
-	periarrest hsinus rxrrt
+    rx_visit ccmds_delta v_decision ///
+    periarrest hsinus rxrrt
 
 *  ==============================
 *  = Set up sparkline variables =
@@ -149,244 +149,244 @@ local sparks 12
 local sparkwidth 8
 global sparkspike_width 1.5
 local sparkspike_vars ///
-	temperature wcc hrate bpsys bpmap rrate spo2 fio2_std ///
-	uvol1h creatinine urea ///
-	ph pf paco2 hco3 lactate platelets sodium bili
+    temperature wcc hrate bpsys bpmap rrate spo2 fio2_std ///
+    uvol1h creatinine urea ///
+    ph pf paco2 hco3 lactate platelets sodium bili
 * Use fat 2 point sparkline for horizontal bars (default 0.2pt)
 local sparkhbar_width 3pt
 local sparkhbar_vars ///
-	male periarrest hsinus rxrrt ///
-	v_ccmds vitals rxcvs rx_resp
+    male periarrest hsinus rxrrt ///
+    v_ccmds vitals rxcvs rx_resp
 
 
 * CHANGED: 2013-02-05 - use the gap_here indicator to add gaps
 * these need to be numbered as _1 etc
 * Define the order of vars in the table
 global table_order ///
-	periarrest gap_here ///
-	temperature wcc gap_here ///
-	hrate hsinus bpsys bpmap gap_here ///
-	rxcvs gap_here ///
-	rrate spo2 fio2_std gap_here ///
-	rx_resp gap_here ///
-	gcst ///
-	uvol1h creatinine urea gap_here ///
-	rxrrt gap_here ///
-	ph pf paco2 hco3 lactate gap_here ///
-	platelets sodium bili
+    periarrest gap_here ///
+    temperature wcc gap_here ///
+    hrate hsinus bpsys bpmap gap_here ///
+    rxcvs gap_here ///
+    rrate spo2 fio2_std gap_here ///
+    rx_resp gap_here ///
+    gcst ///
+    uvol1h creatinine urea gap_here ///
+    rxrrt gap_here ///
+    ph pf paco2 hco3 lactate gap_here ///
+    platelets sodium bili
 
 * number the gaps
 local i = 1
 local table_order
 foreach word of global table_order {
-	if "`word'" == "gap_here" {
-		local w `word'_`i'
-		local ++i
-	}
-	else {
-		local w `word'
-	}
-	local table_order `table_order' `w'
+    if "`word'" == "gap_here" {
+        local w `word'_`i'
+        local ++i
+    }
+    else {
+        local w `word'
+    }
+    local table_order `table_order' `w'
 }
 global table_order `table_order'
 
 tempname pname
 tempfile pfile
 postfile `pname' ///
-	int 	bylevel ///
-	int 	table_order ///
-	str32	var_type ///
-	str32 	var_super ///
-	str32 	varname ///
-	str96 	varlabel ///
-	str64 	var_sub ///
-	int 	var_level ///
-	double 	vcentral ///
-	double 	vmin ///
-	double 	vmax ///
-	double 	vother ///
-	str244	sparkspike ///
-	using `pfile' , replace
+    int     bylevel ///
+    int     table_order ///
+    str32   var_type ///
+    str32   var_super ///
+    str32   varname ///
+    str96   varlabel ///
+    str64   var_sub ///
+    int     var_level ///
+    double  vcentral ///
+    double  vmin ///
+    double  vmax ///
+    double  vother ///
+    str244  sparkspike ///
+    using `pfile' , replace
 
 
 tempfile working
 save `working', replace
 levelsof `byvar', clean local(bylevels)
 foreach lvl of local bylevels {
-	use `working', clear
-	keep if `byvar' == `lvl'
-	local lvl_label: label (`byvar') `lvl'
-	local lvl_labels `lvl_labels' `lvl_label'
-	count
-	local grp_sizes `grp_sizes' `=r(N)'
-	local table_order 1
-	local sparkspike = ""
-	foreach var of local table_vars {
-		local varname `var'
-		local varlabel: variable label `var'
-		local var_sub
-		// CHANGED: 2013-02-05 - in theory you should not have negative value labels
-		local var_level -1
-		// Little routine to pull the super category
-		local super_var_counter = 1
-		foreach super_var of local super_vars {
-			local check_in_super: list posof "`var'" in `super_var'
-			if `check_in_super' {
-				local var_super: word `super_var_counter' of `super_vars'
-				continue, break
-			}
-			local var_super
-			local super_var_counter = `super_var_counter' + 1
-		}
+    use `working', clear
+    keep if `byvar' == `lvl'
+    local lvl_label: label (`byvar') `lvl'
+    local lvl_labels `lvl_labels' `lvl_label'
+    count
+    local grp_sizes `grp_sizes' `=r(N)'
+    local table_order 1
+    local sparkspike = ""
+    foreach var of local table_vars {
+        local varname `var'
+        local varlabel: variable label `var'
+        local var_sub
+        // CHANGED: 2013-02-05 - in theory you should not have negative value labels
+        local var_level -1
+        // Little routine to pull the super category
+        local super_var_counter = 1
+        foreach super_var of local super_vars {
+            local check_in_super: list posof "`var'" in `super_var'
+            if `check_in_super' {
+                local var_super: word `super_var_counter' of `super_vars'
+                continue, break
+            }
+            local var_super
+            local super_var_counter = `super_var_counter' + 1
+        }
 
-		// Now assign values base on the type of variable
-		local check_in_list: list posof "`var'" in norm_vars
-		if `check_in_list' > 0 {
-			local var_type	= "Normal"
-			su `var'
-			local vcentral 	= r(mean)
-			local vmin		= .
-			local vmax		= .
-			local vother 	= r(sd)
-		}
+        // Now assign values base on the type of variable
+        local check_in_list: list posof "`var'" in norm_vars
+        if `check_in_list' > 0 {
+            local var_type  = "Normal"
+            su `var'
+            local vcentral  = r(mean)
+            local vmin      = .
+            local vmax      = .
+            local vother    = r(sd)
+        }
 
-		local check_in_list: list posof "`var'" in bin_vars
-		if `check_in_list' > 0 {
-			local var_type	= "Binary"
-			count if `var' == 1
-			local vcentral 	= r(N)
-			local vmin		= .
-			local vmax		= .
-			su `var'
-			local vother 	= r(mean) * 100
-			// sparkhbar routine
-			local check_in_list: list posof "`var'" in sparkhbar_vars
-			if `check_in_list' > 0 {
-				local x : di %9.2f `=r(mean)'
-				local x = trim("`x'")
-				local sparkspike "\setlength{\sparklinethickness}{`sparkhbar_width'}\begin{sparkline}{`sparkwidth'}\spark 0.0 0.5 `x' 0.5 / \end{sparkline}\setlength{\sparklinethickness}{0.2pt}"
-			}
-		}
+        local check_in_list: list posof "`var'" in bin_vars
+        if `check_in_list' > 0 {
+            local var_type  = "Binary"
+            count if `var' == 1
+            local vcentral  = r(N)
+            local vmin      = .
+            local vmax      = .
+            su `var'
+            local vother    = r(mean) * 100
+            // sparkhbar routine
+            local check_in_list: list posof "`var'" in sparkhbar_vars
+            if `check_in_list' > 0 {
+                local x : di %9.2f `=r(mean)'
+                local x = trim("`x'")
+                local sparkspike "\setlength{\sparklinethickness}{`sparkhbar_width'}\begin{sparkline}{`sparkwidth'}\spark 0.0 0.5 `x' 0.5 / \end{sparkline}\setlength{\sparklinethickness}{0.2pt}"
+            }
+        }
 
-		local check_in_list: list posof "`var'" in skew_vars
-		if `check_in_list' > 0 {
-			local var_type	= "Skewed"
-			su `var', d
-			local vcentral 	= r(p50)
-			local vmin		= r(p25)
-			local vmax		= r(p75)
-			local vother 	= .
-		}
+        local check_in_list: list posof "`var'" in skew_vars
+        if `check_in_list' > 0 {
+            local var_type  = "Skewed"
+            su `var', d
+            local vcentral  = r(p50)
+            local vmin      = r(p25)
+            local vmax      = r(p75)
+            local vother    = .
+        }
 
-		local check_in_list: list posof "`var'" in range_vars
-		if `check_in_list' > 0 {
-			local var_type	= "Skewed"
-			su `var', d
-			local vcentral 	= r(p50)
-			local vmin		= r(min)
-			local vmax		= r(max)
-			local vother 	= .
-		}
-
-
-		// sparkspike routine
-		local check_in_list: list posof "`var'" in sparkspike_vars
-		if `check_in_list' > 0 {
-			local sparkspike = ""
-			cap drop kd kx kx20 kdmedian
-			kdensity `var', gen(kx kd) nograph
-			// normalise over the [0,1] scale
-			qui su kd
-			replace kd = kd / r(max)
-			egen kx20 = cut(kx), group(20)
-			replace kx20 = kx20 + 1
-			bys kx20: egen kdmedian = median(kd)
-			local sparkspike "\begin{sparkline}{`sparkwidth'}\renewcommand*{\do}[1]{\sparkspike #1 }\docsvlist{"
-			forvalues k = 1/`sparks' {
-				// hack to get the kdmedian value
-				qui su kdmedian if kx20 == `k', meanonly
-				local spike : di %9.2f `=r(mean)'
-				local spike = trim("`spike'")
-				local x = `k' / `sparks'
-				local x : di %9.2f `x'
-				local x = trim("`x'")
-				local sparkspike "`sparkspike'{`x' `spike'}"
-				// add a comma if not the end of the list
-				if `k' != `sparks' local sparkspike "`sparkspike',"
-			}
-			local sparkspike "`sparkspike'}\end{sparkline}"
-		}
-
-		local check_in_list: list posof "`var'" in cat_vars
-		if `check_in_list' == 0 {
-			post `pname' ///
-				(`lvl') ///
-				(`table_order') ///
-				("`var_type'") ///
-				("`var_super'") ///
-				("`varname'") ///
-				("`varlabel'") ///
-				("`var_sub'") ///
-				(`var_level') ///
-				(`vcentral') ///
-				(`vmin') ///
-				(`vmax') ///
-				(`vother') ///
-				("`sparkspike'")
-
-			local table_order = `table_order' + 1
-			continue
-		}
-
-		// Need a different approach for categorical variables
-		cap restore, not
-		preserve
-		contract `var'
-		rename _freq vcentral
-		egen vother = total(vcentral)
-		replace vother = vcentral / vother * 100
-		decode `var', gen(var_sub)
-		drop if missing(`var')
-		local last = _N
-
-		forvalues i = 1/`last' {
-			local var_type	= "Categorical"
-			local var_sub	= var_sub[`i']
-			local var_level	= `var'[`i']
-			local vcentral 	= vcentral[`i']
-			local vmin		= .
-			local vmax		= .
-			local vother 	= vother[`i']
-			// sparkhbar routine
-			local check_in_list: list posof "`var'" in sparkhbar_vars
-			if `check_in_list' > 0 {
-				local x = `vother' / 100
-				local x : di %9.2f `x'
-				local x = trim("`x'")
-				local sparkspike "\setlength{\sparklinethickness}{`sparkhbar_width'}\begin{sparkline}{`sparkwidth'}\spark 0.0 0.5 `x' 0.5 / \end{sparkline}\setlength{\sparklinethickness}{0.2pt}"
-			}
-
-		post `pname' ///
-			(`lvl') ///
-			(`table_order') ///
-			("`var_type'") ///
-			("`var_super'") ///
-			("`varname'") ///
-			("`varlabel'") ///
-			("`var_sub'") ///
-			(`var_level') ///
-			(`vcentral') ///
-			(`vmin') ///
-			(`vmax') ///
-			(`vother') ///
-			("`sparkspike'")
+        local check_in_list: list posof "`var'" in range_vars
+        if `check_in_list' > 0 {
+            local var_type  = "Skewed"
+            su `var', d
+            local vcentral  = r(p50)
+            local vmin      = r(min)
+            local vmax      = r(max)
+            local vother    = .
+        }
 
 
-		local table_order = `table_order' + 1
-		}
-		restore
+        // sparkspike routine
+        local check_in_list: list posof "`var'" in sparkspike_vars
+        if `check_in_list' > 0 {
+            local sparkspike = ""
+            cap drop kd kx kx20 kdmedian
+            kdensity `var', gen(kx kd) nograph
+            // normalise over the [0,1] scale
+            qui su kd
+            replace kd = kd / r(max)
+            egen kx20 = cut(kx), group(`sparks')
+            replace kx20 = kx20 + 1
+            bys kx20: egen kdmedian = median(kd)
+            local sparkspike "\begin{sparkline}{`sparkwidth'}\renewcommand*{\do}[1]{\sparkspike #1 }\docsvlist{"
+            forvalues k = 1/`sparks' {
+                // hack to get the kdmedian value
+                qui su kdmedian if kx20 == `k', meanonly
+                local spike : di %9.2f `=r(mean)'
+                local spike = trim("`spike'")
+                local x = `k' / `sparks'
+                local x : di %9.2f `x'
+                local x = trim("`x'")
+                local sparkspike "`sparkspike'{`x' `spike'}"
+                // add a comma if not the end of the list
+                if `k' != `sparks' local sparkspike "`sparkspike',"
+            }
+            local sparkspike "`sparkspike'}\end{sparkline}"
+        }
 
-	}
+        local check_in_list: list posof "`var'" in cat_vars
+        if `check_in_list' == 0 {
+            post `pname' ///
+                (`lvl') ///
+                (`table_order') ///
+                ("`var_type'") ///
+                ("`var_super'") ///
+                ("`varname'") ///
+                ("`varlabel'") ///
+                ("`var_sub'") ///
+                (`var_level') ///
+                (`vcentral') ///
+                (`vmin') ///
+                (`vmax') ///
+                (`vother') ///
+                ("`sparkspike'")
+
+            local table_order = `table_order' + 1
+            continue
+        }
+
+        // Need a different approach for categorical variables
+        cap restore, not
+        preserve
+        contract `var'
+        rename _freq vcentral
+        egen vother = total(vcentral)
+        replace vother = vcentral / vother * 100
+        decode `var', gen(var_sub)
+        drop if missing(`var')
+        local last = _N
+
+        forvalues i = 1/`last' {
+            local var_type  = "Categorical"
+            local var_sub   = var_sub[`i']
+            local var_level = `var'[`i']
+            local vcentral  = vcentral[`i']
+            local vmin      = .
+            local vmax      = .
+            local vother    = vother[`i']
+            // sparkhbar routine
+            local check_in_list: list posof "`var'" in sparkhbar_vars
+            if `check_in_list' > 0 {
+                local x = round(`vother' / 100, 0.01)
+                local x : di %9.2f `x'
+                local x = trim("`x'")
+                local sparkspike "\setlength{\sparklinethickness}{`sparkhbar_width'}\begin{sparkline}{`sparkwidth'}\spark 0.0 0.5 `x' 0.5 / \end{sparkline}\setlength{\sparklinethickness}{0.2pt}"
+            }
+
+        post `pname' ///
+            (`lvl') ///
+            (`table_order') ///
+            ("`var_type'") ///
+            ("`var_super'") ///
+            ("`varname'") ///
+            ("`varlabel'") ///
+            ("`var_sub'") ///
+            (`var_level') ///
+            (`vcentral') ///
+            (`vmin') ///
+            (`vmax') ///
+            (`vother') ///
+            ("`sparkspike'")
+
+
+        local table_order = `table_order' + 1
+        }
+        restore
+
+    }
 }
 global lvl_labels `lvl_labels'
 global grp_sizes `grp_sizes'
@@ -425,8 +425,8 @@ cap drop table_order
 gen table_order = .
 local i = 1
 foreach var of local table_order {
-	replace table_order = `i' if varname == "`var'"
-	local ++i
+    replace table_order = `i' if varname == "`var'"
+    local ++i
 }
 * CHANGED: 2013-02-07 - try and reverse sort severity categories
 gsort +bylevel +table_order -var_level
@@ -449,30 +449,30 @@ gen vother_fmt = ""
 local lastrow = _N
 local i = 1
 while `i' <= `lastrow' {
-	di varlabel[`i']
-	local stataformat = stataformat[`i']
-	di `"`stataformat'"'
-	foreach var in vcentral vmin vmax vother {
-		// first of all specific var formats
-		local formatted : di `stataformat' `var'[`i']
-		di `formatted'
-		replace `var'_fmt = "`formatted'" ///
-			if _n == `i' ///
-			& !inlist(var_type[`i'],"Binary", "Categorical") ///
-			& !missing(`var'[`i'])
-		// now binary and categorical vars
-		local format1 : di %9.0gc `var'[`i']
-		local format2 : di %9.1fc `var'[`i']
-		replace `var'_fmt = "`format1'" if _n == `i' ///
-			& "`var'" == "vcentral" ///
-			& inlist(var_type[`i'],"Binary", "Categorical") ///
-			& !missing(`var'[`i'])
-		replace `var'_fmt = "`format2'" if _n == `i' ///
-			& "`var'" == "vother" ///
-			& inlist(var_type[`i'],"Binary", "Categorical") ///
-			& !missing(`var'[`i'])
-	}
-	local ++i
+    di varlabel[`i']
+    local stataformat = stataformat[`i']
+    di `"`stataformat'"'
+    foreach var in vcentral vmin vmax vother {
+        // first of all specific var formats
+        local formatted : di `stataformat' `var'[`i']
+        di `formatted'
+        replace `var'_fmt = "`formatted'" ///
+            if _n == `i' ///
+            & !inlist(var_type[`i'],"Binary", "Categorical") ///
+            & !missing(`var'[`i'])
+        // now binary and categorical vars
+        local format1 : di %9.0gc `var'[`i']
+        local format2 : di %9.1fc `var'[`i']
+        replace `var'_fmt = "`format1'" if _n == `i' ///
+            & "`var'" == "vcentral" ///
+            & inlist(var_type[`i'],"Binary", "Categorical") ///
+            & !missing(`var'[`i'])
+        replace `var'_fmt = "`format2'" if _n == `i' ///
+            & "`var'" == "vother" ///
+            & inlist(var_type[`i'],"Binary", "Categorical") ///
+            & !missing(`var'[`i'])
+    }
+    local ++i
 }
 cap drop vbracket
 gen vbracket = ""
@@ -484,8 +484,8 @@ replace vbracket = subinstr(vbracket," ","",.)
 * CHANGED: 2013-01-25 - test condition first because unitlabel may be numeric if all missing
 cap confirm string var unitlabel
 if _rc {
-	tostring unitlabel, replace
-	replace unitlabel = "" if unitlabel == "."
+    tostring unitlabel, replace
+    replace unitlabel = "" if unitlabel == "."
 }
 replace tablerowlabel = tablerowlabel + " (" + unitlabel + ")" if !missing(unitlabel)
 
@@ -497,24 +497,24 @@ br tablerowlabel vcentral_fmt vbracket
 
 
 chardef tablerowlabel vcentral_fmt vbracket, ///
-	char(varname) ///
-	prefix("\textit{") suffix("}") ///
-	values("Characteristic" "Value" "")
+    char(varname) ///
+    prefix("\textit{") suffix("}") ///
+    values("Characteristic" "Value" "")
 
 listtab_vars tablerowlabel vcentral_fmt vbracket, ///
-	begin("") delimiter("&") end(`"\\"') ///
-	substitute(char varname) ///
-	local(h1)
+    begin("") delimiter("&") end(`"\\"') ///
+    substitute(char varname) ///
+    local(h1)
 
 *  ==============================
 *  = Now convert to wide format =
 *  ==============================
 keep bylevel table_order tablerowlabel vcentral_fmt vbracket seq ///
-	varname var_type var_label var_level_lab var_level sparkspike
+    varname var_type var_label var_level_lab var_level sparkspike
 
 chardef tablerowlabel vcentral_fmt, ///
-	char(varname) prefix("\textit{") suffix("}") ///
-	values("Parameter" "Value")
+    char(varname) prefix("\textit{") suffix("}") ///
+    values("Parameter" "Value")
 
 
 * Prepare sub-headings
@@ -524,8 +524,8 @@ chardef tablerowlabel vcentral_fmt, ///
 * local sub_heading "& \multicolumn{2}{c}{`sub_heading'} &  \multicolumn{2}{c}{`sub_heading'} \\"
 
 xrewide vcentral_fmt vbracket sparkspike, ///
-	i(seq) j(bylevel) ///
-	lxjk(nonrowvars)
+    i(seq) j(bylevel) ///
+    lxjk(nonrowvars)
 
 order seq tablerowlabel vcentral_fmt0 vbracket0 vcentral_fmt1 vbracket1
 
@@ -539,10 +539,10 @@ gen design_order = .
 gen varname = ""
 local i 1
 foreach var of local table_order {
-	local word_pos: list posof "`var'" in table_order
-	replace design_order = `i' if _n == `word_pos'
-	replace varname = "`var'" if _n == `word_pos'
-	local ++i
+    local word_pos: list posof "`var'" in table_order
+    replace design_order = `i' if _n == `word_pos'
+    replace varname = "`var'" if _n == `word_pos'
+    local ++i
 }
 
 joinby varname using ../data/scratch/scratch.dta, unmatched(both)
@@ -556,18 +556,18 @@ local lastrow = _N
 local i = 1
 local gaprows
 while `i' <= `lastrow' {
-	// CHANGED: 2013-01-25 - changed so now copes with two different but contiguous categorical vars
-	if varname[`i'] == varname[`i' + 1] ///
-		& varname[`i'] != varname[`i' - 1] ///
-		& var_type[`i'] == "Categorical" {
-		local gaprows `gaprows' `i'
-	}
-	local ++i
+    // CHANGED: 2013-01-25 - changed so now copes with two different but contiguous categorical vars
+    if varname[`i'] == varname[`i' + 1] ///
+        & varname[`i'] != varname[`i' - 1] ///
+        & var_type[`i'] == "Categorical" {
+        local gaprows `gaprows' `i'
+    }
+    local ++i
 }
 di "`gaprows'"
 ingap `gaprows', gapindicator(gaprow)
 replace tablerowlabel = tablerowlabel[_n + 1] ///
-	if gaprow == 1 & !missing(tablerowlabel[_n + 1])
+    if gaprow == 1 & !missing(tablerowlabel[_n + 1])
 replace tablerowlabel = var_level_lab if var_type == "Categorical"
 replace table_order = _n
 
@@ -577,13 +577,13 @@ replace tablerowlabel =  "\hspace*{1em}\smaller[1]{" + tablerowlabel + "}" if va
 * CHANGED: 2013-02-07 - by default do not append statistic type
 local append_statistic_type 0
 if `append_statistic_type' {
-	local median_iqr 	"\smaller[1]{--- median (IQR)}"
-	local n_percent 	"\smaller[1]{--- N (\%)}"
-	local mean_sd 		"\smaller[1]{--- mean (SD)}"
-	replace tablerowlabel = tablerowlabel + " `median_iqr'" if var_type == "Skewed"
-	replace tablerowlabel = tablerowlabel + " `mean_sd'" if var_type == "Normal"
-	replace tablerowlabel = tablerowlabel + " `n_percent'" if var_type == "Binary"
-	replace tablerowlabel = tablerowlabel + " `n_percent'" if gaprow == 1
+    local median_iqr    "\smaller[1]{--- median (IQR)}"
+    local n_percent     "\smaller[1]{--- N (\%)}"
+    local mean_sd       "\smaller[1]{--- mean (SD)}"
+    replace tablerowlabel = tablerowlabel + " `median_iqr'" if var_type == "Skewed"
+    replace tablerowlabel = tablerowlabel + " `mean_sd'" if var_type == "Normal"
+    replace tablerowlabel = tablerowlabel + " `n_percent'" if var_type == "Binary"
+    replace tablerowlabel = tablerowlabel + " `n_percent'" if gaprow == 1
 }
 
 *  ============================
@@ -591,10 +591,10 @@ if `append_statistic_type' {
 *  ============================
 local j = 1
 foreach word of global grp_sizes {
-	local grp_size: word `j' of $grp_sizes
-	local grp_size: di %9.0gc `grp_size'
-	local grp_size_`j' "`grp_size'"
-	local ++j
+    local grp_size: word `j' of $grp_sizes
+    local grp_size: di %9.0gc `grp_size'
+    local grp_size_`j' "`grp_size'"
+    local ++j
 }
 * NOTE: 2013-02-05 - you have an extra & at the beginning but this is OK as covers parameters
 local super_heading1 & \multicolumn{2}{c}{All study patients}  & \multicolumn{2}{c}{Assessed patients}  \\
@@ -605,45 +605,42 @@ local tablefontsize "\scriptsize"
 local arraystretch 1.0
 local taburowcolors 2{white .. white}
 // switch on sparklines?
-local sparklines_on = 1
+local sparklines_on = 0
 if `sparklines_on' {
-	local nonrowvars `nonrowvars' 
-	local sparkspike_width "\renewcommand\sparkspikewidth{$sparkspike_width}"
-	local justify X[6l]X[r]X[2l]X[2l]X[r]X[2l]X[2l]
-	local sparkspike_colour "\definecolor{sparkspikecolor}{gray}{0.7}"
-	local sparkline_colour "\definecolor{sparklinecolor}{gray}{0.7}"
-	local super_heading1 & \multicolumn{3}{c}{All study patients}  & \multicolumn{3}{c}{Assessed patients}  \\
-	local super_heading2 & \multicolumn{3}{c}{`grp_size_1' patients}  & \multicolumn{3}{c}{`grp_size_2' patients} \\
+    local nonrowvars `nonrowvars' 
+    local sparkspike_width "\renewcommand\sparkspikewidth{$sparkspike_width}"
+    local justify X[10l]X[r]X[2l]X[2l]X[r]X[2l]X[2l]
+    local sparkspike_colour "\definecolor{sparkspikecolor}{gray}{0.7}"
+    local sparkline_colour "\definecolor{sparklinecolor}{gray}{0.7}"
+    local super_heading1 & \multicolumn{3}{c}{All study patients}  & \multicolumn{3}{c}{Assessed patients}  \\
+    local super_heading2 & \multicolumn{3}{c}{`grp_size_1' patients}  & \multicolumn{3}{c}{`grp_size_2' patients} \\
 }
 else {
-	local x sparkspike1 sparkspike2
-	local nonrowsvars: list nonrowsvars - x
+    local nonrowvars vcentral_fmt0 vbracket0 vcentral_fmt1 vbracket1
 }
 /*
 Use san-serif font for tables: so \sffamily {} enclosed the whole table
 Add a label to the table at the end for cross-referencing
 */
 listtab tablerowlabel `nonrowvars'  ///
-	using ../outputs/tables/$table_name.tex, ///
-	replace rstyle(tabular) ///
-	headlines( ///
-		"`tablefontsize'" ///
-		"\renewcommand{\arraystretch}{`arraystretch'}" ///
-		"\taburowcolors `taburowcolors'" ///
-		"`sparkspike_width'" ///
-		"`sparkspike_colour'" ///
-		"`sparkline_colour'" ///
-		"\sffamily{" ///
-		"\begin{tabu} spread " ///
-		"\textwidth {`justify'}" ///
-		"\toprule" ///
-		"`super_heading1'" ///
-		"`super_heading2'" ///
-		"\midrule" ) ///
-	footlines( ///
-		"\bottomrule" ///
-		"\end{tabu} } " ///
-		"\label{$table_name} " ///
-		"\normalfont")
+    using ../outputs/tables/$table_name.tex, ///
+    replace rstyle(tabular) ///
+    headlines( ///
+        "`tablefontsize'" ///
+        "\renewcommand{\arraystretch}{`arraystretch'}" ///
+        "\taburowcolors `taburowcolors'" ///
+        "`sparkspike_width'" ///
+        "`sparkspike_colour'" ///
+        "`sparkline_colour'" ///
+        "\begin{tabu} to " ///
+        "\textwidth {`justify'}" ///
+        "\toprule" ///
+        "`super_heading1'" ///
+        "`super_heading2'" ///
+        "\midrule" ) ///
+    footlines( ///
+        "\bottomrule" ///
+        "\end{tabu} " ///
+        "\label{$table_name} ") ///
 
 cap log off
