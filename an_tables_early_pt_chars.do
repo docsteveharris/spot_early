@@ -156,6 +156,7 @@ postfile `pname' ///
     double  vmin ///
     double  vmax ///
     double  vother ///
+    double  pvalue ///
     str244  sparkspike ///
     using `pfile' , replace
 
@@ -163,15 +164,21 @@ postfile `pname' ///
 tempfile working
 save `working', replace
 levelsof `byvar', clean local(bylevels)
+
 foreach lvl of local bylevels {
     use `working', clear
-    keep if `byvar' == `lvl'
+    // CHANGED: 2013-02-26 - swap to using iif instead of keep
+    // keep if `byvar' == `lvl'
+    local touse "`byvar' == `lvl'"
+    local iftouse " if `byvar' == `lvl'"
     local lvl_label: label (`byvar') `lvl'
     local lvl_labels `lvl_labels' `lvl_label'
-    count
+    count if `touse'
     local grp_sizes `grp_sizes' `=r(N)'
     local table_order 1
     local sparkspike = ""
+    // assign an impossible value so you can pick up errors later
+    local pvalue = .
     foreach var of local table_vars {
         local varname `var'
         local varlabel: variable label `var'
@@ -194,21 +201,29 @@ foreach lvl of local bylevels {
         local check_in_list: list posof "`var'" in norm_vars
         if `check_in_list' > 0 {
             local var_type  = "Normal"
-            su `var'
+            su `var'  if `touse'
             local vcentral  = r(mean)
             local vmin      = .
             local vmax      = .
             local vother    = r(sd)
+            if wordcount("`bylevels'") == 2 {
+                ttest `var', by(`byvar')
+                local pvalue = r(p)
+            }
         }
 
         local check_in_list: list posof "`var'" in bin_vars
         if `check_in_list' > 0 {
             local var_type  = "Binary"
-            count if `var' == 1
+            count if `var' == 1 & `touse'
             local vcentral  = r(N)
             local vmin      = .
             local vmax      = .
-            su `var'
+            if wordcount("`bylevels'") == 2 {
+                prtest `var', by(`byvar')
+                local pvalue = (1 - normal(abs(r(z)))) * 2
+            }
+            su `var' if `touse'
             local vother    = r(mean) * 100
             // sparkhbar routine
             local check_in_list: list posof "`var'" in sparkhbar_vars
@@ -222,25 +237,36 @@ foreach lvl of local bylevels {
         local check_in_list: list posof "`var'" in skew_vars
         if `check_in_list' > 0 {
             local var_type  = "Skewed"
-            su `var', d
+            su `var' if `touse', d
             local vcentral  = r(p50)
             local vmin      = r(p25)
             local vmax      = r(p75)
             local vother    = .
+            if wordcount("`bylevels'") == 2 {
+                ranksum `var', by(`byvar')
+                local pvalue = (1 - normal(abs(r(z)))) * 2
+            }
         }
 
         local check_in_list: list posof "`var'" in range_vars
         if `check_in_list' > 0 {
-            local var_type  = "Skewed"
-            su `var', d
+            local var_type  = "Range"
+            su `var' if `touse', d
             local vcentral  = r(p50)
             local vmin      = r(min)
             local vmax      = r(max)
             local vother    = .
+            if wordcount("`bylevels'") == 2 {
+                ranksum `var', by(`byvar')
+                local pvalue = (1 - normal(abs(r(z)))) * 2
+            }
         }
 
 
         // sparkspike routine
+        cap restore, not
+        preserve
+        keep if `touse'
         local check_in_list: list posof "`var'" in sparkspike_vars
         if `check_in_list' > 0 {
             local sparkspike = ""
@@ -267,7 +293,9 @@ foreach lvl of local bylevels {
             }
             local sparkspike "`sparkspike'}\end{sparkline}"
         }
+        restore
 
+        // now post the data and move on if not a cat-var ('cos you're done)
         local check_in_list: list posof "`var'" in cat_vars
         if `check_in_list' == 0 {
             post `pname' ///
@@ -283,6 +311,7 @@ foreach lvl of local bylevels {
                 (`vmin') ///
                 (`vmax') ///
                 (`vother') ///
+                (`pvalue') ///
                 ("`sparkspike'")
 
             local table_order = `table_order' + 1
@@ -290,9 +319,13 @@ foreach lvl of local bylevels {
         }
 
         // Need a different approach for categorical variables
+        // work out chi2 value before contracting data
+        tab `var' `byvar', chi
+        local pvalue = r(p)
         cap restore, not
         preserve
-        contract `var'
+        // if touse here means you don't need it again
+        contract `var' if `touse'
         rename _freq vcentral
         egen vother = total(vcentral)
         replace vother = vcentral / vother * 100
@@ -330,6 +363,7 @@ foreach lvl of local bylevels {
             (`vmin') ///
             (`vmax') ///
             (`vother') ///
+            (`pvalue') ///
             ("`sparkspike'")
 
 
@@ -437,6 +471,8 @@ gen vbracket = ""
 replace vbracket = "(" + vmin_fmt + "--" + vmax_fmt + ")" if !missing(vmin_fmt, vmax_fmt)
 replace vbracket = "(" + vother_fmt + ")" if !missing(vother_fmt)
 replace vbracket = subinstr(vbracket," ","",.)
+sdecode pvalue, format(%9.3f) gen(pvalue_fmt)
+replace pvalue_fmt = "\textless0.001" if pvalue < 0.001
 
 * Append units
 * CHANGED: 2013-01-25 - test condition first because unitlabel may be numeric if all missing
@@ -468,7 +504,8 @@ listtab_vars tablerowlabel vcentral_fmt vbracket, ///
 *  = Now convert to wide format =
 *  ==============================
 keep bylevel table_order tablerowlabel vcentral_fmt vbracket seq ///
-    varname var_type var_label var_level_lab var_level sparkspike
+    varname var_type var_label var_level_lab var_level sparkspike ///
+    pvalue_fmt
 
 chardef tablerowlabel vcentral_fmt, ///
     char(varname) prefix("\textit{") suffix("}") ///
@@ -485,7 +522,12 @@ xrewide vcentral_fmt vbracket sparkspike, ///
     i(seq) j(bylevel) ///
     lxjk(nonrowvars)
 
-order seq tablerowlabel vcentral_fmt0 vbracket0 vcentral_fmt1 vbracket1
+order seq tablerowlabel vcentral_fmt0 vbracket0 vcentral_fmt1 vbracket1 pvalue_fmt
+cap br
+
+// now drop repeated pvalue_fmt (occurs categorical variables)
+bys varname (seq): replace pvalue_fmt = "" if _n != 1
+sort seq
 
 * Now add in gaps or subheadings
 save ../data/scratch/scratch.dta, replace
@@ -544,42 +586,50 @@ if `append_statistic_type' {
     replace tablerowlabel = tablerowlabel + " `n_percent'" if gaprow == 1
 }
 
-*  ============================
-*  = Prepare super categories =
-*  ============================
+
+*  ==============================
+*  = Prepare table and headings =
+*  ==============================
+local tablefontsize "\scriptsize"
+local arraystretch 1.0
+local taburowcolors 2{white .. white}
+
+// super-categories
 local j = 1
+* NOTE: 2013-02-05 - you have an extra & at the beginning but this is OK as covers parameters
 foreach word of global grp_sizes {
     local grp_size: word `j' of $grp_sizes
     local grp_size: di %9.0gc `grp_size'
     local grp_size_`j' "`grp_size'"
     local ++j
 }
-* NOTE: 2013-02-05 - you have an extra & at the beginning but this is OK as covers parameters
-local super_heading1 & \multicolumn{2}{c}{All study patients}  & \multicolumn{2}{c}{Assessed patients}  \\
-local super_heading2 & \multicolumn{2}{c}{`grp_size_1' patients}  & \multicolumn{2}{c}{`grp_size_2' patients} \\
 
-local justify X[6l]X[r]X[2l]X[r]X[2l]
-local tablefontsize "\scriptsize"
-local arraystretch 1.0
-local taburowcolors 2{white .. white}
+// display p-values?
+local pvalue_on = 1
+if `pvalue_on' {
+    local pvalue_heading1 "& p value"
+    local pvalue_heading0 "& "
+    local pvalue_column "X[1.5r]"
+}
+local super_heading1 & \multicolumn{2}{c}{All study patients}  & \multicolumn{2}{c}{Assessed patients} `pvalue_heading1' \\
+local super_heading2 & \multicolumn{2}{c}{`grp_size_1' patients}  & \multicolumn{2}{c}{`grp_size_2' patients} `pvalue_heading0' \\
+
 // switch on sparklines?
 local sparklines_on = 0
 if `sparklines_on' {
-    local nonrowvars `nonrowvars' 
+    local nonrowvars `nonrowvars' pvalue_fmt
     local sparkspike_width "\renewcommand\sparkspikewidth{$sparkspike_width}"
-    local justify X[10l]X[r]X[2l]X[2l]X[r]X[2l]X[2l]
+    local justify "X[10l]X[r]X[2l]X[2l]X[r]X[2l]X[2l]X[r]`pvalue_column'"
     local sparkspike_colour "\definecolor{sparkspikecolor}{gray}{0.7}"
     local sparkline_colour "\definecolor{sparklinecolor}{gray}{0.7}"
-    local super_heading1 & \multicolumn{3}{c}{All study patients}  & \multicolumn{3}{c}{Assessed patients}  \\
-    local super_heading2 & \multicolumn{3}{c}{`grp_size_1' patients}  & \multicolumn{3}{c}{`grp_size_2' patients} \\
+    local super_heading1 & \multicolumn{3}{c}{All study patients}  & \multicolumn{3}{c}{Assessed patients}  `pvalue_heading1' \\
+    local super_heading2 & \multicolumn{3}{c}{`grp_size_1' patients}  & \multicolumn{3}{c}{`grp_size_2' patients} `pvalue_heading0' \\
 }
 else {
-    local nonrowvars vcentral_fmt0 vbracket0 vcentral_fmt1 vbracket1
+    local nonrowvars vcentral_fmt0 vbracket0 vcentral_fmt1 vbracket1 pvalue_fmt
+    local justify "X[6l]X[r]X[2l]X[r]X[2l]`pvalue_column'"
 }
-/*
-Use san-serif font for tables: so \sffamily {} enclosed the whole table
-Add a label to the table at the end for cross-referencing
-*/
+
 listtab tablerowlabel `nonrowvars'  ///
     using ../outputs/tables/$table_name.tex, ///
     replace rstyle(tabular) ///
@@ -599,6 +649,6 @@ listtab tablerowlabel `nonrowvars'  ///
     footlines( ///
         "\bottomrule" ///
         "\end{tabu} " ///
-        "\label{$table_name} ") ///
+        "\label{tab:$table_name} ") ///
 
 cap log off
