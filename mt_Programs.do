@@ -23,6 +23,10 @@ program mt_extract_varname_from_parm
 		if substr(parm, -2, 2) == "_b"
 	replace varname = substr(varname, 1, length(varname) - 2) ///
 		if substr(varname, -2, 2) == "_b"
+	replace var_type = "Continuous" ///
+		if substr(parm, -2, 2) == "_c"
+	replace varname = substr(varname, 1, length(varname) - 2) ///
+		if substr(varname, -2, 2) == "_c"
 	replace var_type = "Categorical" ///
 		if substr(parm, -2, 2) == "_k"
 	replace varname = substr(varname, 1, length(varname) - 2) ///

@@ -6,7 +6,7 @@
 * be needed to work out occupancy and ccot shift patterns
 
 
-local debug = 0
+local debug = 1
 // override local debug settings
 if $debug == 0 local debug = 0
 if `debug' {
@@ -91,6 +91,9 @@ label define cmp_beds_peradmx_k 0 "0--2"
 label define cmp_beds_peradmx_k 1 "2--4", add
 label define cmp_beds_peradmx_k 2 "4+", add
 label values cmp_beds_peradmx_k cmp_beds_peradmx_k
+
+gen small_unit = cmp_beds_max < 10
+label var small_unit "<10 beds"
 
 cap drop patients_perhesadmx
 gen patients_perhesadmx = (count_patients / hes_admissions * 1000)
@@ -185,11 +188,12 @@ label var male "Sex"
 label define male 0 "Female" 1 "Male"
 label values male male
 
-gen sepsis_b = inlist(sepsis,3,4)
-label var sepsis_b "Clinical sepsis"
-label define sepsis_b 0 "Unlikely"
-label define sepsis_b 1 "Likely", add
-label values sepsis_b sepsis_b
+cap drop sepsis1_b
+gen sepsis1_b = inlist(sepsis,3,4)
+label var sepsis1_b "Clinical sepsis"
+label define sepsis1_b 0 "Unlikely"
+label define sepsis1_b 1 "Likely", add
+label values sepsis1_b sepsis1_b
 
 cap drop sepsis_severity
 gen sepsis_severity = sepsis2001
@@ -201,10 +205,10 @@ tab sepsis_severity
 
 cap drop sepsis_dx
 gen sepsis_dx = 0
-replace sepsis_dx = 1 if sepsis_b
-replace sepsis_dx = 2 if sepsis_b & sepsis_site == 5
-replace sepsis_dx = 3 if sepsis_b & sepsis_site == 3
-replace sepsis_dx = 4 if sepsis_b & sepsis_site == 1
+replace sepsis_dx = 1 if sepsis1_b
+replace sepsis_dx = 2 if sepsis1_b & sepsis_site == 5
+replace sepsis_dx = 3 if sepsis1_b & sepsis_site == 3
+replace sepsis_dx = 4 if sepsis1_b & sepsis_site == 1
 label var sepsis_dx "Sepsis diagnosis"
 label define sepsis_dx 0 "Not septic" 1 "Unspecified sepsis" 2 "GU sepsis" 3 "GI sepsis" 4 "Chest sepsis"
 label values sepsis_dx sepsis_dx
@@ -545,6 +549,9 @@ label define age_k 3 "80+", add
 label values age_k age_k
 gen age_c = age - 65
 label var age_c "Age (centred at 65yrs)"
+
+gen age10_c = age_c / 10
+label var age10_c "Age (per decade, centred at 65"
 
 gen delayed_referral = !v_timely
 label var delayed_referral "Delayed referral to ICU"
