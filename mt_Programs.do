@@ -13,6 +13,7 @@ cap program drop mt_extract_varname_from_parm
 program mt_extract_varname_from_parm
 	cap drop model_order
 	gen model_order = _n
+	cap drop reference_cat
 	cap drop var_type
 	gen var_type = ""
 	cap drop varname
@@ -34,6 +35,9 @@ program mt_extract_varname_from_parm
 	replace var_level = reverse(var_level)
 	replace var_level = subinstr(var_level,"b","",.)
 	destring var_level, replace
+	gen reference_cat = 0
+	replace reference_cat = 1 if substr(parm, strpos(parm,".") - 1,1) == "b" ///
+		& strpos(parm,".") != 0
 	gsort model_order
 	br varname var_level estimate min95 max95 p
 end
@@ -96,3 +100,4 @@ program mt_indent_categorical_vars
 	replace tablerowlabel =  "\hspace*{1em}\smaller[1]{" + tablerowlabel + "}" ///
 		if var_level_lab != ""
 end
+

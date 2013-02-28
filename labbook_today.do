@@ -4,148 +4,87 @@
 
 * Simple way to write and trial bits of code
 
-
-*  ======================================================
-*  = Figures: Ix bimodal distribution for ICU admission =
-*  ======================================================
-
-clear
-cd ~/data/spot_early/vcode
-use ../data/working.dta
+use ../data/working.dta, clear
 qui include cr_preflight.do
-
-rename early4 icu_deliver
 count
 
-*  ==========
-*  = by age =
-*  ==========
-cap drop *_prob *_stdp *_*95
-foreach var in recommend accept deliver {
-	// use default options -- this is for demonstration purposes
-	fracpoly: logit icu_`var' age
-	fracpred `var'_logit
-	fracpred `var'_stdp, stdp
-	// now convert to probability scale
-	gen `var'_prob = invlogit(`var'_logit)
-	gen `var'_min95 = invlogit(`var'_logit - 1.96 * `var'_stdp)
-	gen `var'_max95 = invlogit(`var'_logit + 1.96 * `var'_stdp)
+label list cc_decision
+tab cc_decision
+
+// define the current location of the patients
+cap label drop location_now
+label define location_now 0 "Ward"
+label define location_now 1 "ICU", modify
+label define location_now 2 "Dead", modify
+cap drop location_now
+gen location_now = 0
+label var location_now "Location now"
+label values location_now location_now
+tab location_now
+
+cap drop location_last
+gen location_last = 0
+label var location_last "Location last"
+label values location_last location_now
+
+// work on the 24 hour scale because MRIS survival tracing is date only
+forvalues h = 0(24)72 {
+
+	replace location_last = location_now
+	di _newline
+	di "========================================"
+	di "ASSESSING PATIENT LOCATION AT `h' hours"
+	di "========================================"
+	di _newline
+
+	forvalues i = 0/2 {
+		// accepted to ICU
+		if `i' == 2 {
+			local touse "cc_decision == 2"
+			local cc_cat "Accepted to critical care: "
+		}
+		// ward follow-up planned
+		if `i' == 1 {
+			local touse "cc_decision == 1"
+			local cc_cat "Ward follow-up planned: "
+		}
+		// no ward follow-up planned
+		if `i' == 0 {
+			local touse "cc_decision == 0"
+			local cc_cat "No ward follow-up planned: "
+		}
+
+		// alive without icu admission
+		local alive_without ///
+			`touse' ///
+			& (time2icu >= `h' | time2icu == .) ///
+			& (date_trace >= (dofc(v_timestamp) + 1))
+		qui replace location_now = 0 if `alive_without'
+
+		// in critical care
+		local alive_ICU ///
+			`touse' ///
+			& (time2icu < `h') ///
+			& (date_trace >= (dofc(v_timestamp) + 1))
+		qui replace location_now = 1 if `alive_ICU'
+
+		// dead - regardless of route
+
+		local dead_all ///
+			`touse' ///
+			& dead == 1 ///
+			& (date_trace <= (dofc(v_timestamp) + (`h'/24)))
+		qui replace location_now = 2 if `dead_all'
+
+	}
+	tab location_now cc_decision
+	di _newline
+	di "NO follow-up"
+	tab location_now location_last if cc_decision == 0
+	di "Ward follow-up planned"
+	tab location_now location_last if cc_decision == 1
+	di "Accepted to critical care"
+	tab location_now location_last if cc_decision == 2
+	di _newline
 }
-
-save ../data/scratch.dta, replace
-use ../data/scratch.dta, clear
-tw ///
-	(rarea recommend_max95 recommend_min95 age, sort pstyle(ci)) ///
-	(line recommend_prob age, sort connect(direct) lpattern(dot)) ///
-	(rarea accept_max95 accept_min95 age, sort pstyle(ci)) ///
-	(line accept_prob age, sort connect(direct)  lpattern(dash)) ///
-	(rarea deliver_max95 deliver_min95 age, sort pstyle(ci)) ///
-	(line deliver_prob age, sort connect(direct) lpattern(solid) ) ///
-	, ///
-	xscale(noextend) ///
-	yscale(noextend) ///
-	ylabel(0(0.25)1, nogrid) ///
-	ytitle("Unadjusted probability") ///
-	legend( ///
-		order(2 3 4) ///
-		title("Critical care", size(medsmall) placement(9) justification(left)) ///
-		label(2 "- recommended") ///
-		label(3 "- accepted") ///
-		label(4 "- admitted {superscript:*}") ///
-		size(medsmall) ///
-		pos(2)) ///
-	note("{superscript:*} Admitted indicates admitted within 4 hours", size(small)) ///
-	xsize(8) ysize(6)
-
-graph rename icu_by_age, replace
-graph export ../outputs/figures/icu_by_age.pdf, replace ///
-	name(icu_by_age)
-
-*  ===============
-*  = by severity =
-*  ===============
-cap drop *_prob *_stdp *_*95 *_logit
-cap rename early4 icu_deliver
-foreach var in recommend accept deliver {
-	// use default options -- this is for demonstration purposes
-	// NOTE: 2013-02-11 - doesn't converge for -2 power
-	local powers powers( -1, -.5, 0, .5, 1, 2, 3)
-	fracpoly, `powers': logit icu_`var' icnarc0
-	fracpred `var'_logit
-	fracpred `var'_stdp, stdp
-	// now convert to probability scale
-	gen `var'_prob = invlogit(`var'_logit)
-	gen `var'_min95 = invlogit(`var'_logit - 1.96 * `var'_stdp)
-	gen `var'_max95 = invlogit(`var'_logit + 1.96 * `var'_stdp)
-}
-
-save ../data/scratch.dta, replace
-use ../data/scratch.dta, clear
-tw ///
-	(rarea recommend_max95 recommend_min95 icnarc0, sort pstyle(ci)) ///
-	(line recommend_prob icnarc0, sort connect(direct) lpattern(dot)) ///
-	(rarea accept_max95 accept_min95 icnarc0, sort pstyle(ci)) ///
-	(line accept_prob icnarc0, sort connect(direct)  lpattern(dash)) ///
-	(rarea deliver_max95 deliver_min95 icnarc0, sort pstyle(ci)) ///
-	(line deliver_prob icnarc0, sort connect(direct) lpattern(solid) ) ///
-	, ///
-	xscale(noextend) ///
-	xtitle("ICNARC Acute Physiology Score") ///
-	yscale(noextend) ///
-	ylabel(0(0.25)1, nogrid) ///
-	ytitle("Unadjusted probability") ///
-	legend( ///
-		order(2 3 4) ///
-		title("Critical care", size(medsmall) placement(9) justification(left)) ///
-		label(2 "- recommended") ///
-		label(3 "- accepted") ///
-		label(4 "- admitted {superscript:*}") ///
-		size(medsmall) ///
-		pos(2)) ///
-	note("{superscript:*} Admitted indicates admitted within 4 hours", size(small)) ///
-	xsize(8) ysize(6)
-
-graph rename icu_by_icnarc0, replace
-graph export ../outputs/figures/icu_by_icnarc0.pdf, replace ///
-	name(icu_by_icnarc0)
-
-exit
-
-*  ==================================================================
-*  = Disease severity at admission by occupancy at time of referral =
-*  ==================================================================
-// 130214
-use ../data/working_postflight.dta, clear
-drop if missing(icnno, adno)
-tempfile 2merge
-save `2merge', replace
-use ../data/working_tails.dta, clear
-merge 1:1 icnno adno using `2merge', ///
-	keepusing(free_beds_cmp bed_pressure beds_none dead28 date_trace dead) 
-
-tab beds_none
-tab bed_pressure
-tabstat imscore, by(bed_pressure) s(n mean sd q) format(%9.3g)
-regress imscore i.bed_pressure
-// LOS
-gen yulos_log = log(yulos)
-regress yulos_log i.bed_pressure
-regress yulos_log i.bed_pressure if yusurv == 0
-regress yulos_log i.bed_pressure if yusurv == 1
-
-// mortality
-logistic dead28 i.bed_pressure
-logistic yusurv i.bed_pressure
-logistic ahsurv i.bed_pressure
-
-// survival
-gen t = date_trace - dofc(v_timestamp)
-stset t, failure(dead == 1) exit(t == 90)
-sts graph, by(beds_none) 
-sts graph, by(beds_none) ci
-sts test beds_none
-stcox beds_none, shared(site)
-
-
-
 
