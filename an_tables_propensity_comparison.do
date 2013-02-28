@@ -1,10 +1,6 @@
 /*
 Prepare table comparing characteristics of the early versus deferred admission
-
-
 */
-
-
 *  =========================
 *  = Define you table name =
 *  =========================

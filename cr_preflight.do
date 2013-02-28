@@ -100,6 +100,7 @@ gen patients_perhesadmx_c = patients_perhesadmx - r(mean)
 label var patients_perhesadmx_c "Standardised monthly ward referrals (centred)"
 
 
+
 xtile count_patients_q5 = count_patients, nq(5)
 
 
@@ -178,14 +179,6 @@ label define route_to_icu ///
 label values route_to_icu route_to_icu
 label var route_to_icu "ICU admission pathway"
 
-* NOTE: 2012-09-27 - get more precise survival timing for those who die in ICU
-* Add one hour though else ICU discharge and last_trace at same time
-* this would mean these records being dropped by stset
-* CHANGED: 2012-10-02 - changed to 23:59:00 from 23:59:59 because of rounding errors
-gen double last_trace = cofd(date_trace) + hms(23,58,00)
-replace last_trace = icu_discharge if dead_icu == 1 & !missing(icu_discharge)
-format last_trace %tc
-label var last_trace "Timestamp last event"
 
 gen male=sex==1
 label var male "Sex"
@@ -248,17 +241,23 @@ replace dead90 = . if missing(date_trace)
 label var dead90 "90d mortality"
 label values dead90 truefalse
 
-cap drop icufree_days
-tempvar icu_los days_alive
-gen `days_alive' 	= date_trace - dofc(v_timestamp)
-gen `icu_los' 		= dofc(icu_discharge) - dofc(icu_admit) ///
-	if !missing(icu_admit, icu_discharge)
-replace `icu_los' = 0 if `icu_los' == .
-gen icufree_days = 28 ///
-	- cond(`days_alive' <= 28, 28 - `days_alive', 0) ///
-	- cond(`icu_los' <= 28, `icu_los', 28)
-label var icufree_days "Days alive without ICU (of 1st 28)"
-su icufree_days
+foreach i in 28 90 {
+	cap drop icufree_days`i'
+	tempvar day_`i' icu_days dead_days
+	gen `day_`i'' = dofc(v_timestamp) + `i'
+	gen `icu_days' = 0
+	replace `icu_days' = `i' - (dofc(icu_admit) - dofc(v_timestamp)) if dofc(icu_admit) < `day_`i''
+	// subtract an extra 1 means that you count the day of discharge as an ICU day
+	replace `icu_days' = `icu_days' - (`day_`i'' - dofc(icu_discharge) - 1) if dofc(icu_discharge) < `day_`i''
+	gen `dead_days' = 0
+	replace `dead_days' = `day_`i'' - date_trace if dead == 1 & date_trace < `day_`i''
+	// otherwise double counts the day of death if this occurs in ICU
+	replace `dead_days' = `dead_days' - 1 if dofc(icu_discharge) == date_trace
+	gen icufree_days`i' = `i' - `icu_days' - `dead_days'
+	label var icufree_days`i' "Days alive without ICU (of 1st `i')"
+	su icufree_days`i'
+}
+
 
 * Flag patients where so much physiology missing that associated with badness
 cap drop icnarc_miss
