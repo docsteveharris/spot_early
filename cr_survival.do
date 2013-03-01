@@ -19,54 +19,7 @@ else {
 *  ==============
 *  = Exclusions =
 *  ==============
-tab dead, missing
-drop if dead == .
 
-* TODO: 2012-09-27 - mismatch between icu outcome and dates and MRIS data
-sort dorisname
-di as error "NOTE: 2013-01-29 - 23 ICU deaths not found in MRIS"
-tab dead dead_icu
-list id dorisname dead_icu dead if dead_icu == 1 & dead == 0, sepby(dorisname)
-
-* TODO: 2013-01-29 - check for mismatched dates of death
-list id dorisname dead_icu ddicu date_trace ///
-	if icu_discharge != date_trace  & ddicu != . & dead_icu == 1 & dead == 1
-
-* drop these for now
-drop if dead_icu == 1 & dead == 0
-
-* TODO: 2013-01-29 - missing ICU icu_discharge
-* of which one has a mismatched death
-list id dorisname dead dead_icu ddicu date_trace ///
-	if dofC(icu_discharge) != date_trace & dead_icu == 1 & dead !=. ///
-	, sepby(dorisname)
-* replace ddicu with date_trace + 23hrs and 59mins in these patients
-replace icu_discharge = dhms(date_trace,0,0,0) ///
-	if dofc(icu_discharge) == . & dead_icu == 1 & dead !=.
-
-
-* TODO: 2013-01-29 - this should really be moved to validation level checks
-* count problem dates and times
-count if floor(hours(icu_admit))		> floor(hours(icu_discharge)) 	& !missing(icu_admit, icu_discharge)
-count if floor(hours(v_timestamp))		> floor(hours(icu_admit)) 		& !missing(v_timestamp, icu_admit)
-list id icode v_timestamp icu_admit ///
-	if floor(hours(v_timestamp))		> floor(hours(icu_admit)) 		& !missing(v_timestamp, icu_admit) ///
-	, sepby(icode)
-count if floor(hours(v_timestamp)) 		> floor(hours(icu_discharge)) 	& !missing(v_timestamp, icu_discharge)
-count if floor(hours(icu_admit)) 		> floor(hours(last_trace)) 		& !missing(icu_admit, last_trace)
-count if floor(hours(icu_discharge))	> floor(hours(last_trace)) 		& !missing(icu_discharge, last_trace)
-list id icode icu_discharge last_trace ///
-	if floor(hours(icu_discharge))	> floor(hours(last_trace)) 		& !missing(icu_discharge, last_trace) ///
-	, sepby(icode)
-count if floor(hours(v_timestamp)) 		> floor(hours(last_trace)) 		& !missing(v_timestamp, last_trace)
-
-* NB all done at the at hours resolution
-drop if floor(hours(icu_admit))		> floor(hours(icu_discharge)) 	& !missing(icu_admit, icu_discharge)
-drop if floor(hours(v_timestamp))	> floor(hours(icu_admit)) 		& !missing(v_timestamp, icu_admit)
-drop if floor(hours(v_timestamp)) 	> floor(hours(icu_discharge)) 	& !missing(v_timestamp, icu_discharge)
-drop if floor(hours(icu_admit)) 	> floor(hours(last_trace)) 		& !missing(icu_admit, last_trace)
-drop if floor(hours(icu_discharge)) > floor(hours(last_trace)) 		& !missing(icu_discharge, last_trace)
-drop if floor(hours(v_timestamp)) 	> floor(hours(last_trace)) 		& !missing(v_timestamp, last_trace)
 
 gen double dt1 = v_timestamp
 gen double dt2 = icu_admit

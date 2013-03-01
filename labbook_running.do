@@ -9,10 +9,11 @@
 * Simple way to write and trial bits of code
 
 
+* 130224
 *  ======================================================
 *  = Figures: Ix bimodal distribution for ICU admission =
 *  ======================================================
-* 130215
+
 clear
 cd ~/data/spot_early/vcode
 use ../data/working.dta
@@ -114,6 +115,44 @@ graph export ../outputs/figures/icu_by_icnarc0.pdf, replace ///
 	name(icu_by_icnarc0)
 
 exit
+
+*  ==================================================================
+*  = Disease severity at admission by occupancy at time of referral =
+*  ==================================================================
+// 130214
+use ../data/working_postflight.dta, clear
+drop if missing(icnno, adno)
+tempfile 2merge
+save `2merge', replace
+use ../data/working_tails.dta, clear
+merge 1:1 icnno adno using `2merge', ///
+	keepusing(free_beds_cmp bed_pressure beds_none dead28 date_trace dead) 
+
+tab beds_none
+tab bed_pressure
+tabstat imscore, by(bed_pressure) s(n mean sd q) format(%9.3g)
+regress imscore i.bed_pressure
+// LOS
+gen yulos_log = log(yulos)
+regress yulos_log i.bed_pressure
+regress yulos_log i.bed_pressure if yusurv == 0
+regress yulos_log i.bed_pressure if yusurv == 1
+
+// mortality
+logistic dead28 i.bed_pressure
+logistic yusurv i.bed_pressure
+logistic ahsurv i.bed_pressure
+
+// survival
+gen t = date_trace - dofc(v_timestamp)
+stset t, failure(dead == 1) exit(t == 90)
+sts graph, by(beds_none) 
+sts graph, by(beds_none) ci
+sts test beds_none
+stcox beds_none, shared(site)
+
+
+
 
 *  ==================================================================
 *  = Disease severity at admission by occupancy at time of referral =
