@@ -205,8 +205,8 @@ list dorisname dead_icu dead if dead_icu == 1 & dead == 0 ///
 
 * TODO: 2013-01-29 - check for mismatched dates of death
 list dorisname dead_icu ddicu date_trace ///
-	if icu_discharge != date_trace  & ddicu != . & dead_icu == 1 & dead == 1 & ///
-	& include == 1 & exclude1 == 0 & exclude2 == 0 & exclude3 ==0 & missing(date_trace) == 1 ///
+	if icu_discharge != date_trace  & ddicu != . & dead_icu == 1 & dead == 1 ///
+	& include == 1 & exclude1 == 0 & exclude2 == 0 & exclude3 ==0 & missing(date_trace) == 1 
 
 * drop these for now
 replace exclude4 = 1 if dead_icu == 1 & dead == 0
