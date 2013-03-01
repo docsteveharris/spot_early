@@ -6,12 +6,15 @@
 * be needed to work out occupancy and ccot shift patterns
 
 
-local debug = 1
+local debug = 0
 // override local debug settings
 if $debug == 0 local debug = 0
 if `debug' {
 	use ../data/working.dta, clear
 
+}
+else {
+	di as error "WARNING: debug off - using data in memory"
 }
 
 cap label drop truefalse
@@ -121,12 +124,24 @@ label var time2icu "Time to ICU (hrs)"
 *  ==========================
 *  = Patient flow variables =
 *  ==========================
+* - defaults to Level 0/1 if missing
+* What is being delivered
+tab v_ccmds
+cap drop cc_now
+gen cc_now = 0
+replace cc_now = 0 if inlist(v_ccmds, 0, 1)
+replace cc_now = 1 if inlist(v_ccmds, 2, 3)
+label var cc_now "Higher level of care - now"
+label values cc_now truefalse
+
 * What was recommended
+* - defaults to zero
 tab v_ccmds_rec, miss
 cap drop cc_recommended
-gen cc_recommended = .
-replace cc_recommended = 0 if inlist(v_ccmds,0,1)
-replace cc_recommended = 1 if inlist(v_ccmds,2,3)
+gen cc_recommended = 0
+replace cc_recommended = 0 if inlist(v_ccmds_rec,0,1)
+replace cc_recommended = 1 if inlist(v_ccmds_rec,2,3)
+label var cc_recommended "Higher level of care - recommended"
 label values cc_recommended truefalse
 tab cc_recommended
 
@@ -290,7 +305,9 @@ gen abg = !missing(abgunit)
 label var abg "Arterial blood gas measurement"
 label values abg truefalse
 
-gen 	rxcvs = 0 if rxcvs_sofa == 0
+
+* CHANGED: 2013-03-01 - defaults to zero if missing (imputes)
+gen rxcvs	  = 0
 replace rxcvs = 1 if rxcvs_sofa == 1
 replace rxcvs = 2 if inlist(rxcvs_sofa,2,3,4,5)
 label var rxcvs "Cardiovascular support"
@@ -307,6 +324,7 @@ label var rx_resp "Respiratory support"
 label define rx_resp 0 "None" 1 "Supplemental oxygen" 2 "NIV"
 label values rx_resp rx_resp
 
+replace rxrrt = 0 if rxrrt == .
 *  =======================================
 *  = Defer and delay indicator variables =
 *  =======================================
