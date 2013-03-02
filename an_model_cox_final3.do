@@ -136,19 +136,39 @@ estimates stats *
 use ../data/scratch/scratch.dta, clear
 estimates drop _all
 
+/*
+Models for comparative table
+Enter severity as a TVC
+
+- delay_delay_b (early4 within admitted only )
+- defer_delay_b (early4 within all)
+- defer_delay_c (icu_delay as TVC - time-constant effect)
+
+NOTE: 2013-03-01 - you have allowed delay_c to have flexible forms below
+I have not included these here because then I end up talking about a
+time-varying co-efficient for a time varying co-variate!!!! Too much!
+
+Then final table will be defer_delay_c
+
+*/
+
 // model 1: early4 versus delay (amongst the admitted)
 // immortal time bias because the only way you can be admitted >4hrs is to survive longer
 // therefore would expect the delay group to survive better
 stcox icu_accept $confounders_full if icucmp == 1
 stcox early4 $confounders_full if icucmp == 1
+est store delay_delay_b
 
 // model 2: early4 versus deferred (amongst all)
-
 stcox icu_accept $confounders_full
 stcox early4 $confounders_full
+est store defer_delay_b
 
 // model 3: early4 versus delay in TVC set-up
 // tvc so no immortal time bias
+
+// SWITCHING TO TVC data
+
 use ../data/working_survival_tvc.dta, clear
 
 // the first two model just replicates the analysis in the non-split data
@@ -156,6 +176,7 @@ stcox early4 $confounders_full if icucmp == 1
 
 // the next model now permits severity to have a time-varying effect
 stcox early4 $confounders_notvc icnarc0_c c.icnarc0_c#tb if icucmp == 1
+est store delay_delay_b
 
 // now model icu_delay as a tvc
 // set 4 as the baseline: indicates admitted within 4 hours
@@ -165,7 +186,6 @@ stcox ib4.icu_delay_k $confounders_notvc icnarc0_c c.icnarc0_c#tb if icucmp == 1
 // model 4: early4 versus deferred in TVC set-up
 // the first two model just replicates the analysis in the non-split data
 stcox early4 $confounders_full
-est store defer_delay_tc
 estat phtest, detail
 
 // the next model now permits severity to have a time-varying effect
@@ -198,7 +218,7 @@ global confounders_notvc_nofactors ///
 	v_ccmds_1 v_ccmds_3 v_ccmds_4 ///
 	sepsis_dx_2-sepsis_dx_5 ///
 	periarrest ///
-	cc_recommended ///
+	cc_recommended 
 
 // double check this model is the same as the stata generated one above
 local double_check = 0
@@ -218,27 +238,28 @@ fracpoly, compare: ///
 	stcox 	icu_delay_nospike icu_delay_zero ///
 	 		$confounders_notvc_nofactors ///
 				icnarc0_c icnarc0_c_1-icnarc0_c_7
+	fracplot ///
+		, ///
+		msymbol(+) msymbolsize(tiny) ///
+		xscale(noextend) ///
+		xlab(0(1)7) ///
+		xtitle("Delay to critical care (days)") ///
+		yscale(noextend) ///
+		ylab(-4 0 4) ///
+		ytitle("(Adjusted) linear predictor") ///
+		ylab(,nogrid) ///
+		title("")
+	graph rename defer_delay_fp, replace
+	graph export ../outputs/figures/defer_delay_fp.pdf ///
+	    , name(defer_delay_fp) replace
 }
 // NOTE: 2013-03-01 - selected powers 1 2 but if you need to recheck then run above
+// you will also need to re-run above if you want to call fracplot
 fracgen icu_delay_nospike 1 2, replace
 stcox 	icu_de_1 icu_de_2 icu_delay_zero ///
 	 		$confounders_notvc_nofactors ///
 				icnarc0_c icnarc0_c_1-icnarc0_c_7
 est store defer_delay_fp
-fracplot ///
-	, ///
-	msymbol(p) ///
-	xscale(noextend) ///
-	xlab(0(1)7) ///
-	xtitle("Delay to critical care") ///
-	yscale(noextend) ///
-	ylab(-4 0 4) ///
-	ytitle("(Adjusted) linear predictor") ///
-	ylab(,nogrid) ///
-	title("")
-graph rename defer_delay_fp, replace
-graph export ../outputs/tables/defer_delay_fp.pdf ///
-    , name(defer_delay_fp) replace
 
 // Inspection would suggest that linear between days 0-3 and then roughly constant
 // similar to Simchen
@@ -274,10 +295,6 @@ stcox icu_delay_nospike c.icu_delay_nospike#ib0.tb_delay icu_delay_zero ///
 
 est restore defer_delay_ls
 margins, at(icu_delay_nospike_lt3 0(0.1)1)
-
-
-
-
 
 
 
