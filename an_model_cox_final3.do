@@ -281,6 +281,8 @@ est table defer_delay_k defer_delay_c defer_delay_fp defer_delay_ls, eform stats
 // c model simplest ... but ls makes more intuitive sense (delay can't keep being more harmful)
 
 // let's inspect margins so for convenience refit model using factor notation
+// NOTE: 2013-03-02 - not sure this makes sense: what do margins mean with cox? there is no baseline
+// and it must make even less sense if you now include TVC
 cap drop tb_delay
 gen tb_delay = .
 replace tb_delay = 0 if tsplit < 3
@@ -294,16 +296,71 @@ stcox icu_delay_nospike c.icu_delay_nospike#ib0.tb_delay icu_delay_zero ///
 est restore defer_delay_ls
 margins, at(icu_delay_nospike_lt3 0(0.1)1)
 
+*  ======================================
+*  = Now inspect effect of interactions =
+*  ======================================
+use ../data/scratch/scratch.dta, clear
 
-*  ======================
-*  = Now produce tables =
-*  ======================
+// start with severity as a non-TVC
+stcox early4 $confounders_notvc icnarc0_c
+est store m1
+// run the model using the un-centred version of icnarc_c: easier for margins plots
+stcox i.early4##c.icnarc0 $confounders_notvc 
+est store m2
+// do not directly compare the co-efficient for early4 from this model without converting 
+// back to the centred level
+su icnarc0 if ppsample
+lincom 1.early4 + `=r(mean)'*1.early4#c.icnarc0, eform
+// this should be (and is) the same
 
-// check you have the same co-variates in each
-est table defer_delay_k defer_delay_c defer_delay_fp defer_delay_ls, eform stats(N ll chi2 aic bic)
+est stats m1 m2
+// not much in favour of the interactiion wrt model fit
 
+// but the direction of the effect is still of interest
+// so: now use the model to plot the interaction effect
+est restore m2
+margins early4, at( icnarc0=(0/50)) atmeans noatlegend post
+est store m2_margins
+// save this because it takes ages to re-run
+estimates save ../data/estimates/margins_early_severity, replace
 
+marginsplot, ///
+	xdimension(at(icnarc0)) ///
+	recast(scatter) ///
+	plotopts(msize(vsmall) msymbol(diamond)) ///
+	ciopts(msize(zero)) ///
+	plot1opts(mcolor(red)) ///
+	ci1opts(lcolor(red)) ///
+	plot2opts(mcolor(blue)) ///
+	ci2opts(lcolor(blue)) ///
+	xscale(noextend) ///
+	xtitle("ICNARC acute physiology score") ///
+	yscale(noextend) ///
+	ylab(,nogrid) ///
+	title("") ///
+	legend(position(3))
 
+graph rename margins_early_severity, replace
+graph export ../outputs/figures/margins_early_severity.pdf ///
+    , name(margins_early_severity) replace
+
+// use this figure in your thesis (without (for now) reporting the actual table)
+// simply to discuss and show that there is a signal showing benefit for early admisson
+// even in the 'honest' but incompletely perfectly adjusted analysis
+
+*  ==========================================================
+*  = Now check the benefit of improving severity adjustment =
+*  ==========================================================
+stcox early4 $confounders_notvc icnarc0
+est store m1
+stcox early4 $confounders_notvc icnarc0 news_score sofa_score
+est store m2
+est stats m1 m2
+// marked improvement in model fit
+// marked decrease in significance of early4
+stcox early4##c.icnarc0 $confounders_notvc news_score sofa_score
+est store m3
+// now this is hard to intepret
 
 
 cap log close

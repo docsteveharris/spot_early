@@ -29,7 +29,7 @@ global confounders_tvc ///
 	icnarc0_c ///
 	icnarc0_c_1_f ///
 	icnarc0_c_3_f ///
-	icnarc0_c_7_f 
+	icnarc0_c_7_f
 
 *  ========================
 *  = Univariate estimates =
@@ -167,27 +167,53 @@ save ../outputs/tables/$table_name.dta, replace
 local ++i
 
 
-*  ===================================
+*  ==================================
 *  = Now produce the tables in latex =
 *  ===================================
 use ../outputs/tables/$table_name.dta, clear
+
+// convert to wide
+tempfile working 2merge
+cap restore, not
+preserve
+local wide_vars estimate stderr z p stars min95 max95
+forvalues i = 1/4 {
+	keep parm model_sequence `wide_vars'
+	keep if model_sequence == `i'
+	foreach name in `wide_vars' {
+		rename `name' `name'_`i'
+	}
+	save `2merge', replace
+	if `i' == 1 {
+		save `working', replace
+	}
+	else {
+		use `working', clear
+		merge 1:1 parm using `2merge'
+		drop _merge
+		save `working', replace
+	}
+	restore
+	preserve
+
+}
+restore, not
+use `working', clear
 qui include mt_Programs.do
 
-cap drop model_sequence
+cap drop model_name
 gen model_name = model_sequence
 cap label drop model_name
-label define model_name 0 "Univariate"
-label define model_name 1 "Admissions only", add
-label define model_name 2 "All referrals", add
-label define model_name 3 "Time-varying", add
+label define model_name 1 "Univariate"
+label define model_name 2 "Admissions only", add
+label define model_name 3 "All referrals", add
+label define model_name 4 "Time-varying", add
 label values model_name model_name
 decode model_name, gen(model)
-
 mt_extract_varname_from_parm
-order model_sequence idnum varname var_level
+order model_sequence varname var_level
 
-// this does not work for factor variables - do this by hand
-replace varname = "" if strpos(varname, "#") > 0
+// label the vars
 spot_label_table_vars
 
 replace var_level = 0 if varname == "icnarc0" & var_level == .
@@ -211,37 +237,103 @@ global table_order ///
 	icu_delay_nospike ///
 	icu_delay_zero
 
-cap drop table_order
 mt_table_order
-sort model_sequence table_order var_level
-order model_sequence table_order varname var_level
+sort table_order var_level
+
+forvalues i = 1/4 {
+	gen est_raw_`i' = estimate_`i'
+	sdecode estimate_`i', format(%9.2fc) replace
+	replace stars_`i' = "\textsuperscript{" + stars_`i' + "}"
+	replace estimate_`i' = estimate_`i' + stars_`i'
+	replace estimate_`i' = "--" if parm == "1b.v_ccmds"
+	replace estimate_`i' = "--" if parm == "0b.sepsis_dx"
+	replace estimate_`i' = "" if est_raw_`i' == .
+}
+
 // indent categorical variables
 mt_indent_categorical_vars
-// replace missing values of model_sequence 
-replace model_sequence = model_sequence[_n + 1] ///
-	if gaprow == 1 & !missing(model_sequence[_n + 1])
-gen est = estimate
-sdecode estimate, format(%9.2fc) replace
-replace stars = "\textsuperscript{" + stars + "}"
-replace estimate = estimate + stars
 
+ingap 15 19 20 21
 
+// now send the table to latex
+local cols tablerowlabel estimate_1 estimate_2 estimate_3 estimate_4
+order `cols'
 
-exit
+local super_heading "& \multicolumn{4}{c}{Hazard ratio} \\"
+local h1 "& Univariate & Admissions only & All referrals & Time-varying \\ "
+local justify lXXXX
+local tablefontsize "\footnotesize"
+local taburowcolors 2{white .. white}
 
-* drop idnum idstr  label stderr z stataformat ///
-* 	attributes_found es_1 es_2 dummy table_pos_min model
+listtab `cols' ///
+	using ../outputs/tables/$table_name.tex, ///
+	replace  ///
+	begin("") delimiter("&") end(`"\\"') ///
+	headlines( ///
+		"`tablefontsize'" ///
+		"\renewcommand{\arraystretch}{`arraystretch'}" ///
+		"\taburowcolors `taburowcolors'" ///
+		"\begin{tabu} spread " ///
+		"\textwidth {`justify'}" ///
+		"\toprule" ///
+		"`super_heading'" ///
+		"\cmidrule(r){2-5}" ///
+		"`h1'" ///
+		"\midrule" ) ///
+	footlines( ///
+		"\bottomrule" ///
+		"\end{tabu}  " ///
+		"\label{tab: $table_name} ") 
 
-* chardef tablerowlabel estimate, ///
-* 	char(varname) prefix("\textit{") suffix("}") ///
-* 	values("Parameter" "Hazard ratio")
+*  ==========================
+*  = Final best model table =
+*  ==========================
+// now produce the final table with 95% CI etc in usual format
+gen estimate = est_raw_4
+gen min95 = min95_4
+gen max95 = max95_4
+gen p = p_4
 
-order parm model_order table_order tablerowlabel estimate stars est min95 max95 p
-br
+sdecode estimate, format(%9.2fc) gen(est)
+sdecode min95, format(%9.2fc) replace
+sdecode max95, format(%9.2fc) replace
+sdecode p, format(%9.3fc) replace
+replace p = "<0.001" if p == "0.000"
+gen est_ci95 = "(" + min95 + "--" + max95 + ")" if !missing(min95, max95)
+replace est = "--" if reference_cat == 1
+replace est_ci95 = "" if reference_cat == 1
 
-xrewide estimate stars est min95 max95 p , ///
-	i(table_order) j(model_name) cjlabel(models) lxjk(nonrowvars)
+* now write the table to latex
+order tablerowlabel var_level_lab est est_ci95 p
+local cols tablerowlabel est est_ci95 p
+order `cols'
+cap br
 
+local table_name cox_final3_best
+local h1 "Parameter & Odds ratio & (95\% CI) & p \\ "
+local justify lrll
+* local justify X[5l] X[1l] X[2l] X[1r]
+local tablefontsize "\scriptsize"
+local arraystretch 1.0
+local taburowcolors 2{white .. white}
 
-exit
+listtab `cols' ///
+	using ../outputs/tables/`table_name'.tex ///
+	if !inlist(_n,23,24), ///
+	replace ///
+	begin("") delimiter("&") end(`"\\"') ///
+	headlines( ///
+		"`tablefontsize'" ///
+		"\renewcommand{\arraystretch}{`arraystretch'}" ///
+		"\taburowcolors `taburowcolors'" ///
+		"\begin{tabu} to " ///
+		"\textwidth {`justify'}" ///
+		"\toprule" ///
+		"`h1'" ///
+		"\midrule" ) ///
+	footlines( ///
+		"\bottomrule" ///
+		"\end{tabu} " ///
+		"\label{tab:`table_name'} ") ///
+
 
