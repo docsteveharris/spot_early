@@ -17,8 +17,27 @@ program mt_extract_varname_from_parm
 	cap drop var_type
 	gen var_type = ""
 	cap drop varname
+	// extract the factor level from the stata parm notation
+	cap drop var_level
+	tempvar reverse_parm
+	gen `reverse_parm' = reverse(parm)
+	gen var_level = substr(`reverse_parm',strpos(`reverse_parm',".") + 1,.)  ///
+		if strpos(`reverse_parm',".") != 0
+	replace var_level = reverse(var_level)
+	replace var_level = subinstr(var_level,"b","",.)
+	gen reference_cat = 0
+	replace reference_cat = 1 if substr(parm, strpos(parm,".") - 1,1) == "b" ///
+		& strpos(parm,".") != 0
+	// extract the varname
 	gen varname = parm
 	replace varname = substr(parm,strpos(parm,".") + 1,.) if strpos(parm,".") != 0
+	// extra work for hand generated factor variables
+	replace var_type = "Factor" ///
+		if substr(parm, -2, 2) == "_f"
+	replace var_level = regexs(1) if regexm(parm, "^[a-z0-9_]+_([0-9]+)_f$")
+	replace varname = substr(varname, 1, length(varname) - 4) ///
+		if var_type == "Factor"
+	// back to sorting out varnames
 	replace var_type = "Binary" ///
 		if substr(parm, -2, 2) == "_b"
 	replace varname = substr(varname, 1, length(varname) - 2) ///
@@ -31,19 +50,8 @@ program mt_extract_varname_from_parm
 		if substr(parm, -2, 2) == "_k"
 	replace varname = substr(varname, 1, length(varname) - 2) ///
 		if substr(varname, -2, 2) == "_k"
-	tempvar reverse_parm
-	gen `reverse_parm' = reverse(parm)
-	cap drop var_level
-	gen var_level = substr(`reverse_parm',strpos(`reverse_parm',".") + 1,.)  ///
-		if strpos(`reverse_parm',".") != 0
-	replace var_level = reverse(var_level)
-	replace var_level = subinstr(var_level,"b","",.)
 	destring var_level, replace
-	gen reference_cat = 0
-	replace reference_cat = 1 if substr(parm, strpos(parm,".") - 1,1) == "b" ///
-		& strpos(parm,".") != 0
 	gsort model_order
-	br varname var_level estimate min95 max95 p
 end
 
 // mt_extract_varname_from_parm
