@@ -104,7 +104,8 @@ label var patients_perhesadmx "Standardised monthly ward referrals"
 qui su patients_perhesadmx
 gen patients_perhesadmx_c = patients_perhesadmx - r(mean)
 label var patients_perhesadmx_c "Standardised monthly ward referrals (centred)"
-
+cap drop patients_perhesadmx_k
+egen patients_perhesadmx_k = cut(patients_perhesadmx), at(0, 0.5, 1,100) label
 
 
 xtile count_patients_q5 = count_patients, nq(5)
