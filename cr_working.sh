@@ -39,7 +39,7 @@ ddbase="spot_early"
 # Finally ....
 
 ../ccode/make_table.py spot_early sites_within_cmpd -o clean
-../ccode/make_table.py spot_early sites_within_hes -o clean
+../ccode/make_table.py spot sites_within_hes -o clean -s spot_early
 ../ccode/make_table.py spot_early sites_early -o clean
 # And the principal table
 ../ccode/make_table.py spot_early working_early -o clean
