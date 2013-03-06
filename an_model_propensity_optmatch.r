@@ -21,6 +21,7 @@ wkg_all = read.dta("../data/working_propensity_all.dta")
 # pr1 - excludes cc_recommend
 # pr2 - includes cc_recommend
 w <- data.frame(
+		site = wkg_all$site,
 		id = wkg_all$id,
 		pr2_p = wkg_all$pr2_p,
 		early4 = wkg_all$early4,
@@ -54,52 +55,35 @@ attach(w)
 library(lattice)
 densityplot(icnarc0, groups = early4)
 table(cc_recommend, early4)
+table(v_ccmds, early4)
+table(site, early4)
 
-# Set up distances
-# Euclidean distance
-distances <- list()
-distances.stratified <- mdist(rx ~ age_c | icnarc_q10, data = w)
 
-# Propensity model
+# Set up distances using the GLM of the propensity model
+# Use deciles of ICNARC score instead of the precise score
+# This then defines the strata for the distances and full match step
+# Propensity model - uses deciles of ICNARC score
 model.pr2 <- glm(rx ~ age_c + male + periarrest + sepsis1_b + v_ccmds 
-	+ icnarc0_c + weekend + out_of_hours + hes_overnight_k + hes_emergx_k
-	+ patients_perhesadmx_k + ccot_shift_pattern + small_unit,
+	+ cc_recommend
+	+ icnarc0_c
+	+ site
+	+ weekend + out_of_hours,
 	family = binomial, data = w )
 
-# distances.strat.propensity <- mdist(
-# 		rx ~ age_c | icnarc_q10, data = w.small)
-# distances.euclid <- match_on(early4 ~ age_c + icnarc0_c, data = w.small, method = "euclidean")
+summary(model.pr2)
 
+distances.pr2.strata <- mdist(model.pr2, structure.fmla = ~ site)
+matches.pr2.strata <- fullmatch(distances.pr2.strata, data = w)
+# this takes about 5 mins to run
 
+# now examine the model output
+summary(matches.pr2.strata)
+library(RItools)
+summary(matches.pr2.strata, propensity.model = model.pr2)
+stratumStructure(matches.pr2.strata)
 
+# now save the model
+write.table (matches.pr2.strata, quote=FALSE, sep=",", col.names=FALSE, file="~/data/optmatch_pr2_strata.dat")
 
-# define the each rows 'rank'
-# pr2rank <- rank(pr2_p)
-
-# attache the ID's to the rank
-# names(pr2rank) <- id
-# pr2rank[1]
-
-# now define the distance between each pair of values
-# and produce a matrix that contains all possible distances
-# rows = all treated cases
-# cols = all control cases
-# cells will be the distance ... this then becomes the basis for the optmatch
-# pr2distance <- outer(pr2rank[rx == 1], pr2rank[rx == 0], "-")
-# pr2distance <- abs(pr2distance)
-# dim(pr2distance)
-
-# optmatch_full <- fullmatch(pr2distance)
-# NOTE: 2013-03-04 - so this fails (matrix too big)
-
-# Try now using the syntax in the example code
-# This sues match_on and may(?) handle large matrices better
-# ppty <- glm(early4 ~ age_c + male + icnarc0_c + v_ccmds, family=binomial(), data=w)
-
-
-
-# mhd <- match_on(rx ~ age_c + male + icnarc0_c, data = w)
-# fm1 <- fullmatch(mhd, data = w)
-# summary(fm1)
 
 

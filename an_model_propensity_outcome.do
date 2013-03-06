@@ -1,7 +1,13 @@
 *  =====================
 *  = Propensity models =
 *  =====================
+
 GenericSetupSteveHarris spot_early an_model_propensity_outcome, logon
+
+/*
+
+*/
+
 
 
 clear
@@ -245,6 +251,10 @@ estimates table baseline iptw_1, b(%9.3fc) eform
 *  =======================
 *  = Matching approaches =
 *  =======================
+
+*  ====================
+*  = Optimal Matching =
+*  ====================
 // use optimal matching data
 /*
 - examine the ratio of treated to control participants
@@ -263,7 +273,103 @@ estimates table baseline iptw_1, b(%9.3fc) eform
 - post-matching analysis
 */
 
-// save your data ready for import into R
+// R will need a current version of working_propensity_all.dta
+
+local optmatch = 1
+if `optmatch' == 1 {
+	rsource using an_model_propensity_optmatch.r, ///
+		rpath("Applications/R64.app/Contents/MacOS/r")
+}
+
+clear
+insheet using ../data/optmatch_pr2_strata.dat
+// I think these are the original IDs, then the match which is coded 
+// as the icnarc score decile.match ID
+
+rename v1 id
+rename v2 optmatch2s
+cap drop icnarc_q10
+gen icnarc_q10 = substr(optmatch2s, 1, strpos(optmatch2s, ".") -1)
+cap drop idoptmatch2s
+gen idoptmatch2s = substr(optmatch2s, strpos(optmatch2s, ".") + 1, .)
+cap drop optmatch2s_ok
+gen optmatch2s_ok = optmatch2s != "NA"
+destring icnarc_q10, replace force
+destring idoptmatch2s, replace force
+// now merge the original data against the new (optmatch) ID
+tempfile 2merge
+save `2merge', replace
+use ../data/working_propensity_all, clear
+merge 1:1 id using `2merge'
+save ../data/scratch/scratch.dta, replace
+
+
+// now run imbalance against 'itself'
+// don't forget that you must do this *within* strata
+use ../data/scratch/scratch.dta, clear
+local imbalance_vars age male periarrest sepsis1_b v_ccmds icnarc0 ///
+	weekend out_of_hours ///
+	hes_overnight_k hes_emergx_k patients_perhesadmx_k ccot_shift_pattern ///
+	small_unit
+tempfile temp results
+cap restore, not
+forvalues i = 1/10 {
+	preserve
+	keep if icnarc_q10 == `i'
+	local run = 1
+	foreach var of local imbalance_vars {
+		imbalance ../data/scratch/scratch `var' early4 idoptmatch2s `temp'
+		if `run' == 1 & `i' == 1 {
+			use `temp', clear
+			gen icnarc_q10 = `i'
+			save `results', replace
+		}
+		else {
+			use `results', clear
+			append using `temp'
+			replace icnarc_q10 = `i' if missing(icnarc_q10)
+			save `results', replace
+		}
+		local ++run
+	}
+	restore
+}
+use `results', clear
+drop if missing(dx, dxm)
+save ../data/optmatch2s_imbalance, replace
+su dx dxm
+
+// after all that work to get optmatch to work
+// doesn't make a big difference :(
+
+// Hodges-Lehman aligned rank test: 
+// ado file assumes that matching id is string
+use ../data/scratch/scratch.dta, clear
+cap drop _m
+cap drop id2
+tostring idoptmatch2s, gen (id2)
+save ../data/scratch/scratch.dta, replace
+tempfile results
+hodgesl ../data/scratch/scratch dead28 id2 early4 `results'
+
+// so early4 leads to a higher 28 d mortality
+
+
+
+*  ====================
+*  = Caliper matching =
+*  ====================
+use ../data/working_propensity_all, clear
+su pr2_l
+local caliper25 = 25 * r(sd) / 100
+psmatch2 early4, radius caliper(`caliper25') ///
+	outcome(dead28) ///
+	pscore(pr2_l)  ate
+
+
+
+
+
 
 
 
