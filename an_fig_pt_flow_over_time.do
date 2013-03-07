@@ -332,5 +332,9 @@ postclose `pname'
 use `pfile', clear
 br
 
+gen icu_all_dead = icu_dead + icu_dc_dead
+gen zero = 0
 
-
+tw ///
+	(rbar ward_dead zero time_point) ///
+	(rbar icu_all_dead zero time_point) 
