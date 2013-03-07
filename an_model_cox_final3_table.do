@@ -29,7 +29,7 @@ global confounders_tvc ///
 	icnarc0_c ///
 	icnarc0_c_1_f ///
 	icnarc0_c_3_f ///
-	icnarc0_c_7_f
+	icnarc0_c_7_f 
 
 *  ========================
 *  = Univariate estimates =
@@ -167,7 +167,7 @@ save ../outputs/tables/$table_name.dta, replace
 local ++i
 
 
-*  ==================================
+*  ===================================
 *  = Now produce the tables in latex =
 *  ===================================
 use ../outputs/tables/$table_name.dta, clear
@@ -210,6 +210,7 @@ label define model_name 3 "All referrals", add
 label define model_name 4 "Time-varying", add
 label values model_name model_name
 decode model_name, gen(model)
+
 mt_extract_varname_from_parm
 order model_sequence varname var_level
 

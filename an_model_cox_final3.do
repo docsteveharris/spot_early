@@ -166,7 +166,9 @@ est store defer_delay_b
 
 // model 3: early4 versus delay in TVC set-up
 // tvc so no immortal time bias
+
 // SWITCHING TO TVC data
+
 use ../data/working_survival_tvc.dta, clear
 
 // the first two model just replicates the analysis in the non-split data
@@ -216,7 +218,7 @@ global confounders_notvc_nofactors ///
 	v_ccmds_1 v_ccmds_3 v_ccmds_4 ///
 	sepsis_dx_2-sepsis_dx_5 ///
 	periarrest ///
-	cc_recommended ///
+	cc_recommended 
 
 // double check this model is the same as the stata generated one above
 local double_check = 0
