@@ -54,7 +54,7 @@ keep if _valid_row
 merge m:1 icode using ../data/sites.dta, ///
 	keepusing(ccot ccot_days ccot_start ccot_hours ccot_shift_pattern ///
 		cmp_patients_permonth tails_othercc all_cc_in_cmp ///
-		hes_admissions hes_emergencies hes_los_mean hes_daycase ///
+		hes_admissions hes_emergencies hes_daycase ///
 		tails_all_percent cmp_beds_persite studydays)
 
 drop if _m != 3
@@ -104,7 +104,8 @@ label var patients_perhesadmx "Standardised monthly ward referrals"
 qui su patients_perhesadmx
 gen patients_perhesadmx_c = patients_perhesadmx - r(mean)
 label var patients_perhesadmx_c "Standardised monthly ward referrals (centred)"
-
+cap drop patients_perhesadmx_k
+egen patients_perhesadmx_k = cut(patients_perhesadmx), at(0, 0.5, 1,100) label
 
 
 xtile count_patients_q5 = count_patients, nq(5)

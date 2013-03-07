@@ -34,6 +34,9 @@ CREATE VIEW spot_early.lite_summ_monthly_raw AS
 	FROM spot.lite_summ_monthly;
 
 -- Sites and units data
+DROP VIEW IF EXISTS spot_early.hes_providers;
+CREATE VIEW spot_early.hes_providers AS
+	SELECT * FROM spot.hes_providers;
 DROP VIEW IF EXISTS spot_early.sites_via_directory_raw;
 CREATE VIEW spot_early.sites_via_directory_raw AS
 	SELECT * FROM spot.sites_via_directory;
