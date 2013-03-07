@@ -23,7 +23,8 @@ if `clean_run' == 1 {
 	include cr_propensity.do
 }
 
-use ../data/working_propensity.dta, clear
+
+
 
 local byvar case
 * NOTE: 2013-02-05 - don't used the centred versions for the table
