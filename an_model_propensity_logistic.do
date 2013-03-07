@@ -412,6 +412,7 @@ su *_yhat *_prob
 sort id
 save ../data/working_propensity_all.dta, replace
 
+exit
 
 *  ===================================================
 *  = Run a 2 - level model and generate latex output =
