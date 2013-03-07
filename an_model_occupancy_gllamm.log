@@ -1,0 +1,283 @@
+
+  ___  ____  ____  ____  ____ (R)
+ /__    /   ____/   /   ____/
+___/   /   /___/   /   /___/   12.1   Copyright 1985-2011 StataCorp LP
+  Statistics/Data Analysis            StataCorp
+                                      4905 Lakeway Drive
+     MP - Parallel Edition            College Station, Texas 77845 USA
+                                      800-STATA-PC        http://www.stata.com
+                                      979-696-4600        stata@stata.com
+                                      979-696-4601 (fax)
+
+Single-user 4-core Stata perpetual license:
+       Serial number:  50120520909
+         Licensed to:  Timberlake
+                       Timberlake Consultants
+
+Notes:
+      1.  (-v# option or -set maxvar-) 5000 maximum variables
+      2.  Command line editing disabled
+      3.  Stata running in batch mode
+
+
+running /Users/steve/Library/Application Support/Stata/profile.do ...
+
+. do /Users/steve/Data/spot_early/vcode/an_model_occupancy_gllamm.do 
+
+. /*
+> NOTE: 2013-02-22 - just a copy of the gllamm model in the main file
+> so can be run in batch mode from the console
+> and I can keep working
+> */
+. 
+. *  =====================
+. *  = Run 3 level model =
+. *  =====================
+. cd /Users/steve/Data/spot_early/vcode
+/Users/steve/Data/spot_early/vcode
+
+. use ../data/working_occupancy.dta, clear
+(cmpd)
+
+. * sample 1
+. count
+185907
+
+. * NOTE: 2013-02-19 - see p.447 Rabe-Hesketh and Skrondal
+. * the ordering of the vars in i is important (goes up the levels)
+. 
+. tab ccot_shift_pattern, gen(ccot_)
+
+    CCOT shift pattern |      Freq.     Percent        Cum.
+-----------------------+-----------------------------------
+                  None |     16,340        8.79        8.79
+      Less than 7 days |     47,476       25.54       34.33
+           7 days/week |     71,042       38.21       72.54
+24 hrs/day 7 days/week |     51,048       27.46      100.00
+-----------------------+-----------------------------------
+                 Total |    185,906      100.00
+
+. tab hes_overnight_k, gen(hes_o_)
+
+   Hospital |
+ admissions |
+(thousands) |      Freq.     Percent        Cum.
+------------+-----------------------------------
+      0--30 |     16,914        9.45        9.45
+     30--60 |     79,945       44.68       54.14
+     60--90 |     49,255       27.53       81.66
+        90+ |     32,807       18.34      100.00
+------------+-----------------------------------
+      Total |    178,921      100.00
+
+. tab hes_emergx_k, gen(hes_e_)
+
+   Hospital |
+  emergency |
+   workload |
+  (percent) |      Freq.     Percent        Cum.
+------------+-----------------------------------
+      0--30 |     12,961        7.24        7.24
+     30--40 |     97,534       54.51       61.76
+        40+ |     68,426       38.24      100.00
+------------+-----------------------------------
+      Total |    178,921      100.00
+
+. tab tofd, gen(tofd_)
+
+Time of day |      Freq.     Percent        Cum.
+------------+-----------------------------------
+  Reference |    123,928       66.66       66.66
+Early shift |     30,975       16.66       83.32
+ Late shift |     31,004       16.68      100.00
+------------+-----------------------------------
+      Total |    185,907      100.00
+
+. 
+. local ivars_long ///
+>         ccot_1 ccot_2 ccot_3 ///
+>         hes_o_2 hes_o_3 hes_o_4 ///
+>         hes_e_2 hes_e_3 ///
+>         tofd_1 tofd_2 ///
+>         imscore_p50_high ///
+>         admx_elsurg_low ///
+>         small_unit ///
+>         satsunmon ///
+>         decjanfeb
+
+. 
+. // NOTE: 2013-02-22 - use only 5 quadrature points b/c this is slow 
+. // and ordinary quadrature
+. // then take the estimates from this to run the default spec
+. // which is 8 points and adaptive quadrature
+. global ivars_long `ivars_long'
+
+. gllamm beds_none $ivars_long ///
+>         , ///
+>         family(binomial) ///
+>         link(logit) ///
+>         i(unit site) ///
+>         nip(5) ///
+>         eform
+
+Iteration 0:   log likelihood = -37603.432  (not concave)
+Iteration 1:   log likelihood = -37565.843  (not concave)
+Iteration 2:   log likelihood = -37520.465  (not concave)
+Iteration 3:   log likelihood =  -37471.63  (not concave)
+Iteration 4:   log likelihood = -37445.497  (not concave)
+Iteration 5:   log likelihood = -37436.673  
+Iteration 6:   log likelihood = -37434.778  (not concave)
+Iteration 7:   log likelihood = -37420.641  
+Iteration 8:   log likelihood = -37409.671  
+Iteration 9:   log likelihood = -37404.904  
+Iteration 10:  log likelihood = -37402.797  
+Iteration 11:  log likelihood = -37402.682  
+Iteration 12:  log likelihood = -37402.682  
+ 
+number of level 1 units = 178921
+number of level 2 units = 103
+number of level 3 units = 89
+ 
+Condition Number = 19.860267
+ 
+gllamm model 
+ 
+log likelihood = -37402.682
+ 
+------------------------------------------------------------------------------
+   beds_none |     exp(b)   Std. Err.      z    P>|z|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+      ccot_1 |   .5560516   .0276086   -11.82   0.000     .5044893     .612884
+      ccot_2 |   2.416473   .0792405    26.91   0.000     2.266051    2.576881
+      ccot_3 |   .3203006   .0129051   -28.26   0.000       .29598    .3466196
+     hes_o_2 |   1.256518   .0530097     5.41   0.000       1.1568    1.364831
+     hes_o_3 |   1.394438   .0603648     7.68   0.000     1.281006    1.517915
+     hes_o_4 |   2.670246   .1205449    21.76   0.000     2.444133    2.917277
+     hes_e_2 |   .4631694   .0273653   -13.03   0.000     .4125233    .5200334
+     hes_e_3 |   .5450702   .0352443    -9.39   0.000     .4801905    .6187158
+      tofd_1 |   1.569996    .047189    15.01   0.000     1.480179    1.665264
+      tofd_2 |   2.497112   .0863902    26.45   0.000     2.333403    2.672306
+imscore_p5~h |   1.023447   .0310242     0.76   0.445     .9644121    1.086096
+admx_elsur~w |   4.671558    .146831    49.04   0.000     4.392459     4.96839
+  small_unit |   6.914428   .2489393    53.71   0.000     6.443333    7.419967
+   satsunmon |   .8320988   .0163855    -9.33   0.000     .8005957    .8648415
+   decjanfeb |   1.710803   .0457518    20.08   0.000      1.62344    1.802866
+       _cons |   .0129939   .0008699   -64.88   0.000     .0113961    .0148158
+------------------------------------------------------------------------------
+ 
+ 
+Variances and covariances of random effects
+------------------------------------------------------------------------------
+
+ 
+***level 2 (unit)
+ 
+    var(1): .16573054 (.00773838)
+ 
+***level 3 (site)
+ 
+    var(1): 1.1451196 (.03584423)
+------------------------------------------------------------------------------
+
+ 
+
+. 
+. estimates save ../data/estimates/occupancy_3level_step1.ster, replace
+file ../data/estimates/occupancy_3level_step1.ster saved
+
+. 
+. matrix a = e(b)
+
+. gllamm beds_none $ivars_long ///
+>         , ///
+>         family(binomial) ///
+>         link(logit) ///
+>         i(unit site) ///
+>         nip(8) ///
+>         eform ///
+>         from(a) adapt
+
+Running adaptive quadrature
+Iteration 0:    log likelihood = -37414.099
+Iteration 1:    log likelihood = -37397.817
+Iteration 2:    log likelihood = -37386.761
+Iteration 3:    log likelihood = -37373.138
+Iteration 4:    log likelihood = -37366.158
+Iteration 5:    log likelihood =  -37360.59
+Iteration 6:    log likelihood = -37356.935
+Iteration 7:    log likelihood = -37353.901
+Iteration 8:    log likelihood = -37351.755
+Iteration 9:    log likelihood = -37350.195
+Iteration 10:    log likelihood = -37349.292
+Iteration 11:    log likelihood = -37348.244
+Iteration 12:    log likelihood = -37347.913
+Iteration 13:    log likelihood = -37347.656
+Iteration 14:    log likelihood = -37347.479
+Iteration 15:    log likelihood = -37347.423
+Iteration 16:    log likelihood = -37347.384
+Iteration 17:    log likelihood = -37347.357
+
+
+Adaptive quadrature has converged, running Newton-Raphson
+Iteration 0:   log likelihood = -37347.357  (not concave)
+Iteration 1:   log likelihood = -37347.357  
+Iteration 2:   log likelihood = -37345.648  
+Iteration 3:   log likelihood = -37344.716  
+Iteration 4:   log likelihood = -37344.199  
+Iteration 5:   log likelihood = -37344.021  
+Iteration 6:   log likelihood = -37344.006  
+Iteration 7:   log likelihood = -37344.006  
+ 
+number of level 1 units = 178921
+number of level 2 units = 103
+number of level 3 units = 89
+ 
+Condition Number = 42.648224
+ 
+gllamm model 
+ 
+log likelihood = -37344.006
+ 
+------------------------------------------------------------------------------
+   beds_none |     exp(b)   Std. Err.      z    P>|z|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+      ccot_1 |   .8180912   .2243039    -0.73   0.464     .4779909     1.40018
+      ccot_2 |    1.69428    .448168     1.99   0.046     1.008851    2.845401
+      ccot_3 |   .4459479   .0963438    -3.74   0.000     .2920036    .6810515
+     hes_o_2 |   .9753017   .2430162    -0.10   0.920     .5984734      1.5894
+     hes_o_3 |   1.084132   .2889444     0.30   0.762     .6430118    1.827872
+     hes_o_4 |   1.608694   .6531396     1.17   0.242     .7259063    3.565057
+     hes_e_2 |   .2992549   .0894564    -4.04   0.000     .1665678    .5376399
+     hes_e_3 |   .3897485   .1081638    -3.40   0.001     .2262337    .6714468
+      tofd_1 |   1.568377   .0471011    14.99   0.000     1.478725    1.663464
+      tofd_2 |   2.492241   .0861596    26.41   0.000     2.328965    2.666963
+imscore_p5~h |   1.384955   .2850138     1.58   0.114     .9252616    2.073036
+admx_elsur~w |   7.415511   1.798747     8.26   0.000      4.60966    11.92925
+  small_unit |   7.233841   1.566442     9.14   0.000     4.732021    11.05837
+   satsunmon |   .8324206   .0163752    -9.32   0.000     .8009367     .865142
+   decjanfeb |   1.697593   .0475545    18.89   0.000     1.606901    1.793405
+       _cons |   .0095788    .003816   -11.67   0.000     .0043874    .0209129
+------------------------------------------------------------------------------
+ 
+ 
+Variances and covariances of random effects
+------------------------------------------------------------------------------
+
+ 
+***level 2 (unit)
+ 
+    var(1): 1.849877 (.23298948)
+ 
+***level 3 (site)
+ 
+    var(1): 2.9151172 (.36860369)
+------------------------------------------------------------------------------
+
+ 
+
+. 
+. estimates save ../data/estimates/occupancy_3level.ster, replace
+file ../data/estimates/occupancy_3level.ster saved
+
+. 
+end of do-file
