@@ -4,37 +4,53 @@
 # TODO: 2013-01-30 - check for an interaction between the treatment and icnarc0
 # TODO: 2013-01-30 - consider need/use of splines
 
+rm(list = ls(all = TRUE)) #CLEAR WORKSPACE
+# set the working directory
+setwd("~/data/spot_early/vcode")
+getwd()
 library(foreign)
-working = read.dta("/Volumes/phd/data-spot_early/working_postflight.dta")
+wkg_all = read.dta("../data/working_postflight.dta")
 library(SemiParBIVProbit)
 
-working$age.b = ifelse(working$age > 80, 1, 0)
 
-working.sub = data.frame(
-		icnarc0 = working$icnarc0,
-		icu4=working$icu4, 
-		age.b=working$age.b, 
-		beds_none=working$beds_none,
-		ccot_on = working$ccot_on,
-		patients_perhesadmx = working$patients_perhesadmx,
-		sepsis_b = working$sepsis_b,
-		dead28 = working$dead28,
-		dead90 = working$dead90,
-		age = working$age,
-		male = working$male
+w <- data.frame(
+		site = wkg_all$site,
+		id = wkg_all$id,
+		early4 = wkg_all$early4,
+		dead28 = wkg_all$dead28,
+		rx = ifelse(wkg_all$early4 == "Early", 1, 0),
+		age_b = ifelse(wkg_all$age_c > 80, 1, 0),
+		age_c = wkg_all$age_c,
+		male = wkg_all$male,
+		periarrest = wkg_all$periarrest,
+		sepsis_dx = wkg_all$sepsis_dx,
+		icnarc0_c = wkg_all$icnarc0_c,
+		v_ccmds = wkg_all$v_ccmds,
+		cc_recommend = wkg_all$cc_recommend,
+		beds_none = wkg_all$beds_none
 		 )
 
-working.sub.na = na.omit(working.sub)
+nrow(w)
+w.na <- na.omit(w)
+nrow(w.na)
 
-eqn1 = icu4 ~ icnarc0 + age.b + beds_none + ccot_on  + sepsis_b
-eqn1.no_inst = icu4 ~ icnarc0 + age.b + ccot_on + sepsis_b
+table(w.na$early4)
+table(w.na$rx)
+length(w.na$early4)
+length(w.na$rx)
+length(w.na$icnarc0_c)
+length(w.na$age_b)
 
-eqn2 = dead90 ~ icu4 + icnarc0 + age + male + sepsis_b + ccot_on
+length(w.na$rx)
+length(w.na$dead28)
+
+eqn1            = early4 ~ icnarc0_c + age_b + male + beds_none + sepsis_dx + v_ccmds + cc_recommend + periarrest
+eqn1.no_inst    = early4 ~ icnarc0_c + age_b + beds_none + sepsis_dx + v_ccmds + cc_recommend + periarrest
+eqn2            = dead28 ~ early4 + icnarc0_c + age_c + male + sepsis_dx + v_ccmds + cc_recommend + periarrest
 
 # out = SemiParBIVProbit(eqn1, eqn2, data=working.sub.na)
-out.no_inst = SemiParBIVProbit(eqn1.no_inst, eqn2, data=working.sub.na)
-
+out.no_inst = SemiParBIVProbit(eqn1.no_inst, eqn2, data=w.na)
 summary(out.no_inst)
 
-AT(out, eq=2, nm.bin = "icu4")
+AT(out.no_inst, eq=2, nm.bin = "early4")
 
