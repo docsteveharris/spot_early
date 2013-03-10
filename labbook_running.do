@@ -8,6 +8,83 @@
 
 * Simple way to write and trial bits of code
 
+* 130310
+*  ===================================================================
+*  = An alternative instrument: avoidance of back-to-back admissions =
+*  ===================================================================
+clear
+local ddsn mysqlspot
+local uuser stevetm
+local ppass ""
+odbc load, exec("SELECT * FROM spot_early.heads_previous_admission") ///
+	  dsn("`ddsn'") user("`uuser'") pass("`ppass'") lowercase sqlshow clear
+count
+compress
+file open myvars using ../data/scratch/vars.yml, text write replace
+foreach var of varlist * {
+	di "- `var'" _newline
+	file write myvars "- `var'" _newline
+}
+file close myvars
+shell ../ccode/label_stata_fr_yaml.py "../data/scratch/vars.yml" "../local/lib_phd/dictionary_fields.yml"
+
+capture confirm file ../data/scratch/_label_data.do
+if _rc == 0 {
+	include ../data/scratch/_label_data.do
+}
+else {
+	di as error "Error: Unable to label data"
+	exit
+}
+// }
+destring recent_admx_count, replace
+destring recent_admx_time, replace
+save ../data/heads_previous_admission.dta, replace
+
+use ../data/working_postflight.dta, clear
+merge 1:1 idvisit using ../data/heads_previous_admission
+drop if _m == 2
+drop _m
+
+save ../data/scratch/scratch.dta, replace
+use ../data/scratch/scratch.dta, clear
+
+// now inspect relationship betw number of admissions and early4
+tab recent_admx_count early, row
+tabstat time2icu if recent_admx_count < 4, by(recent_admx_count) s(n mean sd q) format(%9.3g)
+cap drop recent_admx0
+gen recent_admx0 = recent_admx_count == 0
+label var recent_admx0 "No admissions within last hour"
+tabstat time2icu, by(recent_admx0) s(n mean sd q) format(%9.3g)
+ttest time2icu, by(recent_admx0)
+ranksum time2icu, by(recent_admx0)
+
+prtest early4, by(recent_admx0)
+
+// check using times
+regress time2icu recent_admx_time
+
+// so reasonable evidence that back-to-back admissions are avoided
+
+global conf_outcome ///
+	age_c ///
+	male ///
+	ib1.v_ccmds ///
+	ib0.sepsis_dx ///
+	periarrest ///
+	cc_recommended ///
+	icnarc0_c
+
+ivregress 2sls dead28 $conf_outcome ///
+	(early4 = recent_admx0)
+
+ivregress liml dead28 $conf_outcome ///
+	(early4 = beds_none)
+est store liml1
+
+ivregress liml dead28 $conf_outcome ///
+	(early4 = beds_none recent_admx0)
+est store liml2
 
 * 130224
 *  ======================================================
