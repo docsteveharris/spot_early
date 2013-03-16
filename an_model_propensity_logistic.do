@@ -197,6 +197,7 @@ global prvars_k ///
 
 
 // using continuous variables where possible
+// CHANGED: 2013-03-15 - keep age as categorical
 global prvars_c ///
 	i.hes_overnight_k ///
 	i.hes_emergx_k ///
@@ -206,7 +207,7 @@ global prvars_c ///
 	weekend ///
 	out_of_hours ///
 	beds_none ///
-	age_c ///
+	ib2.age_k ///
 	male ///
 	periarrest ///
 	sepsis1_b ///
@@ -412,8 +413,8 @@ su *_yhat *_prob
 sort id
 save ../data/working_propensity_all.dta, replace
 
-exit
-
+use ../data/working_propensity_all, clear
+cap drop __*
 *  ===================================================
 *  = Run a 2 - level model and generate latex output =
 *  ===================================================
@@ -447,10 +448,20 @@ parmest , ///
 	format(estimate min* max* %8.3f p %8.3f) ///
 	saving(`temp1', replace)
 use `temp1', clear
+
 // now label varname
 mt_extract_varname_from_parm
+
 // now get tablerowlabels
 spot_label_table_vars
+
+// label age categories by hand
+replace var_level_lab = "18--39" if varname == "age" and var_level == 0
+replace var_level_lab = "40--59" if varname == "age" and var_level == 1
+replace var_level_lab = "60--79" if varname == "age" and var_level == 2
+replace var_level_lab = "80--" if varname == "age" and var_level == 3
+
+
 // now produce table order
 global table_order ///
 	hes_overnight hes_emergx ccot_shift_pattern patients_perhesadmx ///
