@@ -60,7 +60,9 @@ save ../outputs/tables/$table_name.dta, replace
 
 
 // now for the other non-tvc univariates
-local uni_vars $confounders_notvc defer4 icu_delay_nospike icu_delay_zero
+// CHANGED: 2013-03-16 - swap delay for early
+local uni_vars $confounders_notvc early4 icu_early_nospike icu_early_zero
+// local uni_vars $confounders_notvc defer4 icu_delay_nospike icu_delay_zero
 
 foreach var of local uni_vars {
 	use ../data/scratch/scratch.dta, clear
@@ -92,8 +94,10 @@ foreach var of local uni_vars {
 local ++model_sequence
 use ../data/scratch/scratch.dta, clear
 // Delay with severity as time-varying
+// CHANGED: 2013-03-16 - code as early instead of delay
 stcox $confounders_notvc $confounders_tvc ///
-	defer4 if icucmp == 1
+	early4 if icucmp == 1
+//	defer4 if icucmp == 1
 
 local model_name full immortal_bias
 est store full1
@@ -119,8 +123,10 @@ local ++i
 local ++model_sequence
 use ../data/scratch/scratch.dta, clear
 // defer (so all patients)
+// CHANGED: 2013-03-16 - code as early instead of delay
 stcox $confounders_notvc $confounders_tvc ///
-	defer4
+	early4
+//	defer4
 
 local model_name full selection_bias
 est store full1
@@ -145,8 +151,10 @@ local ++i
 *  ============================
 local ++model_sequence
 use ../data/scratch/scratch.dta, clear
+// CHANGED: 2013-03-16 - code as early instead of delay
 stcox $confounders_notvc $confounders_tvc ///
-	icu_delay_nospike icu_delay_zero
+	icu_early_nospike icu_early_zero
+//	icu_delay_nospike icu_delay_zero
 
 local model_name full information_bias
 est store full2
