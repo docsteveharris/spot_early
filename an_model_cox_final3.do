@@ -192,25 +192,56 @@ stcox ib4.icu_delay_k $confounders_notvc icnarc0_c c.icnarc0_c#tb if icucmp == 1
 // model 4: early4 versus deferred in TVC set-up
 // the first two model just replicates the analysis in the non-split data
 stcox early4 $confounders_full, nolog noshow
+est store early4
 estat phtest, detail
+
 
 // the next model now permits severity to have a time-varying effect
 stcox early4 $confounders_notvc icnarc0_c c.icnarc0_c#tb, nolog noshow
-est store defer_delay_b
+est store defer_early_b
 estat phtest, detail
+stcox early4 $confounders_notvc icnarc0_c c.icnarc0_c#tb ///
+	, nolog noshow ///
+	shared(site)
+est store early4_frailty
+est store defer_early_b_frailty
+estimates table defer_early_b defer_early_b_frailty, ///
+	 keep(early4) stats(N ll chi2 aic bic)
 
 // now model icu_delay as a tvc
 // set 4 as the baseline: indicates admitted within 4 hours
 // browse so you can understand variable construction
 br id icu dead _t0 _t _st _d icu_in icu_out icu_delay* if inlist(id,30,31,32)
-stcox ib4.icu_delay_k $confounders_notvc icnarc0_c c.icnarc0_c#tb, nolog noshow
+stcox ib4.icu_delay_k $confounders_notvc icnarc0_c c.icnarc0_c#tb ///
+	, nolog noshow
 est store defer_delay_k
+stcox ib4.icu_delay_k $confounders_notvc icnarc0_c c.icnarc0_c#tb ///
+	, nolog noshow shared(site)
+est store defer_delay_k_frailty
 
 // now look at using icu_delay as a continuous predictor
 // browse so you can understand variable construction
 br id icu dead _t0 _t _st _d icu_in icu_out icu_delay* if inlist(id,30,31,32)
 stcox icu_delay_nospike icu_delay_zero $confounders_notvc icnarc0_c c.icnarc0_c#tb
 est store defer_delay_c
+// icu_early version
+br id icu dead _t0 _t _st _d icu_in icu_out icu_delay* icu_early*
+stcox icu_early_nospike icu_early_zero $confounders_notvc icnarc0_c c.icnarc0_c#tb
+est store defer_early_c
+est table defer_delay_c defer_early_c, eform
+stcox icu_early_nospike icu_early_zero $confounders_notvc ///
+	icnarc0_c c.icnarc0_c#tb ///
+	, nolog noshow shared(site)
+est store defer_early_c_frailty
+estimates table defer_early_c defer_early_c_frailty, ///
+	 keep(early4) stats(N ll chi2 aic bic)
+
+// now check with site as a frailty
+stcox icu_early_nospike icu_early_zero ///
+	$confounders_notvc icnarc0_c c.icnarc0_c#tb ///
+	, ///
+	shared(site)
+
 
 // use fracpoly to inspect functional form
 // produce your own vars since doesn't like the factor variabel notation

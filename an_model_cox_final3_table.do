@@ -40,7 +40,7 @@ local table_order = 1
 
 // start with the tvc univariate
 use ../data/scratch/scratch.dta, clear
-qui stcox $confounders_tvc
+qui stcox $confounders_tvc, shared(site) nolog noshow
 est store u_`i'
 local model_name: word 4 of `=e(datasignaturevars)'
 local model_name = "univariate `model_name'"
@@ -66,7 +66,7 @@ local uni_vars $confounders_notvc early4 icu_early_nospike icu_early_zero
 
 foreach var of local uni_vars {
 	use ../data/scratch/scratch.dta, clear
-	qui stcox `var'
+	qui stcox `var', shared(site) nolog noshow
 	est store u_`i'
 	local model_name: word 4 of `=e(datasignaturevars)'
 	local model_name = "univariate `model_name'"
@@ -96,7 +96,8 @@ use ../data/scratch/scratch.dta, clear
 // Delay with severity as time-varying
 // CHANGED: 2013-03-16 - code as early instead of delay
 stcox $confounders_notvc $confounders_tvc ///
-	early4 if icucmp == 1
+	early4 if icucmp == 1 ///
+	, shared(site) nolog noshow
 //	defer4 if icucmp == 1
 
 local model_name full immortal_bias
@@ -125,7 +126,8 @@ use ../data/scratch/scratch.dta, clear
 // defer (so all patients)
 // CHANGED: 2013-03-16 - code as early instead of delay
 stcox $confounders_notvc $confounders_tvc ///
-	early4
+	early4 ///
+	, shared(site) nolog noshow
 //	defer4
 
 local model_name full selection_bias
@@ -153,7 +155,8 @@ local ++model_sequence
 use ../data/scratch/scratch.dta, clear
 // CHANGED: 2013-03-16 - code as early instead of delay
 stcox $confounders_notvc $confounders_tvc ///
-	icu_early_nospike icu_early_zero
+	icu_early_nospike icu_early_zero ///
+	, shared(site) nolog noshow
 //	icu_delay_nospike icu_delay_zero
 
 local model_name full information_bias
@@ -230,9 +233,9 @@ replace var_level_lab = "Days 1--2 modifier"  if varname == "icnarc0" & var_leve
 replace var_level_lab = "Days 3--7 modifier"  if varname == "icnarc0" & var_level == 3
 replace var_level_lab = "Days 8+ modifier" if varname == "icnarc0" & var_level == 7
 replace tablerowlabel = "Level 2/3 care recommended" if varname == "cc_recommended"
-replace tablerowlabel = "Delay to critical care (per hour)" if varname == "icu_delay_nospike"
-replace tablerowlabel = "Never admitted to critical care" if varname == "icu_delay_zero"
-replace tablerowlabel = "Delay to critical care > 4 hours" if varname == "defer4"
+replace tablerowlabel = "Early critical care (per hour)" if varname == "icu_early_nospike"
+replace tablerowlabel = "Not admitted to critical care" if varname == "icu_early_zero"
+replace tablerowlabel = "Early critical care (< 4 hours)" if varname == "early4"
 
 global table_order ///
 	age ///
@@ -242,9 +245,9 @@ global table_order ///
 	periarrest ///
 	icnarc0 ///
 	cc_recommended ///
-	defer4 ///
-	icu_delay_nospike ///
-	icu_delay_zero
+	early4 ///
+	icu_early_nospike ///
+	icu_early_zero
 
 mt_table_order
 sort table_order var_level
@@ -262,14 +265,15 @@ forvalues i = 1/4 {
 // indent categorical variables
 mt_indent_categorical_vars
 
-ingap 15 19 20 21
+// space out the table for readability
+ingap 8 14 19 20
 
 // now send the table to latex
 local cols tablerowlabel estimate_1 estimate_2 estimate_3 estimate_4
 order `cols'
 
 local super_heading "& \multicolumn{4}{c}{Hazard ratio} \\"
-local h1 "& Univariate & Admissions only & All referrals & Time-varying \\ "
+local h1 "& Univariate & Early vs. delayed & Early vs. deferred & Early --- per hour \\ "
 local justify lXXXX
 local tablefontsize "\footnotesize"
 local taburowcolors 2{white .. white}
