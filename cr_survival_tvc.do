@@ -130,7 +130,8 @@ graph export ../outputs/figures/hist_icu_dose_28_admitted.pdf, ///
 
 cap drop icu_delay
 gen icu_delay = icu_in
-replace icu_delay = round(icu_delay + (1/24),0.01)
+// CHANGED: 2013-03-16 - commented out line below: not sure why it was here anyway
+// replace icu_delay = round(icu_delay + (1/24),0.01)
 replace icu_delay = 7 if icu_delay > 7 & !missing(icu_delay)
 su icu_delay
 label var icu_delay "Delay (moving observation)"
@@ -150,6 +151,19 @@ forvalues i = 12(12)72 {
 }
 label var icu_delay_k "Delay (moving observation) - categorical"
 format icu_delay icu_delay_zero icu_delay_nospike %9.2fc
+
+// now make an icu_early version of icu_delay (ceiling of 1 week)
+cap drop icu_early
+gen icu_early = 7 - icu_in
+replace icu_early = 0 if icu_early < 0 & !missing(icu_early)
+label var icu_early "Early (moving observation)"
+bys id (dt1): replace icu_early = 0 if icu_in >= dt1 
+replace icu_early = 0 if icu_early == .
+cap drop icu_early_nospike icu_early_zero
+gen icu_early_nospike = icu_early + (1/24)
+gen icu_early_zero = icu_early == 0
+format icu_early icu_early_zero icu_early_nospike %9.2fc
+
 list id event_t dt1 risktime icu_dose icu_delay if inlist(id,1,46,27,29), sepby(id)
 // NOTE: 2013-03-01 - equivalent to specifying ICU with time-varying co-efficient?
 // because ICU would be given the dummy 1 and then times would be assigned
@@ -173,7 +187,6 @@ cap drop icu_time_zero
 gen icu_time_zero = icu_time == 0 if !missing(icu_time)
 format icu_time icu_time_nospike icu_time_zero %9.2fc
 list id event_t dt1 risktime icu_dose icu_delay icu_time if inlist(id,1,46,27,29), sepby(id)
-
 
 // generate a categorical version of icu_time
 cap drop icu_time_k

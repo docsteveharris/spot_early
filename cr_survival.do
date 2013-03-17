@@ -112,7 +112,11 @@ So analysis time is days but with a resolution of hours
 Origin is v_timestamp which now defined as zero
 */
 
-noi stset dt1, id(id) origin(dt0) failure(dead) exit(time dt0+28)
+// NOTE: 2013-03-13 - you are about to update your failure indicator 
+// Do not use dead for stset commands from now on
+clonevar dead_st = dead
+label var dead_st "Use this for stset commands"
+noi stset dt1, id(id) origin(dt0) failure(dead_st) exit(time dt0+28)
 /*
 NOTE: 2013-01-29 - inspect stset output and think this through
 - 166 obs begin on or after exit: presumably die at time of visit
