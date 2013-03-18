@@ -1,7 +1,7 @@
 *  ============================================
 *  = Describe the simple effects of occupancy =
 *  ============================================
- 
+
 /*
 By bed pressure
     - beds
@@ -16,15 +16,15 @@ Report
     - Time to ICU
     - Severity at admission
 */
- 
- 
+
+
 *  =========================
 *  = Define you table name =
 *  =========================
- 
+
 GenericSetupSteveHarris spot_early an_tables_occupancy_effects, logon
 global table_name occupancy_effects
- 
+
 /*
 You will need the following columns
 - sort order
@@ -34,7 +34,7 @@ You will need the following columns
 - min
 - max
 */
- 
+
 local clean_run 0
 if `clean_run' == 1 {
     clear
@@ -42,7 +42,7 @@ if `clean_run' == 1 {
     include cr_preflight.do
     include cr_working_tails.do
 }
- 
+
 use ../data/working_tails.dta, clear
 keep icnno adno imscore
 tempfile 2merge
@@ -55,14 +55,14 @@ drop _m
 keep imscore time2icu early4 icu_accept icu_recommend id bed_pressure
 save ../data/scratch/scratch.dta, replace
 use ../data/scratch/scratch.dta, clear
- 
+
 *  ======================================
 *  = Define column categories or byvars =
 *  ======================================
 * NOTE: 2013-02-07 - dummy variable for the byvar loop that forces use of all patients
- 
+
 local byvar bed_pressure
- 
+
 * This is the layout of your table by sections
 local table_vars ///
     icu_recommend ///
@@ -70,14 +70,14 @@ local table_vars ///
     early4 ///
     time2icu ///
     imscore
- 
+
 * Specify the type of variable
 local norm_vars imscore
 local skew_vars time2icu
 local range_vars
 local bin_vars icu_recommend icu_accept early4
 local cat_vars
- 
+
 * CHANGED: 2013-02-05 - use the gap_here indicator to add gaps
 * these need to be numbered as _1 etc
 * Define the order of vars in the table
@@ -87,7 +87,7 @@ global table_order ///
     early4 gap_here ///
     time2icu gap_here ///
     imscore
- 
+
 * number the gaps
 local i = 1
 local table_order
@@ -102,8 +102,8 @@ foreach word of global table_order {
     local table_order `table_order' `w'
 }
 global table_order `table_order'
- 
- 
+
+
 tempname pname
 tempfile pfile
 postfile `pname' ///
@@ -120,7 +120,7 @@ postfile `pname' ///
     double  vmax ///
     double  vother ///
     using `pfile' , replace
- 
+
 tempfile working
 save `working', replace
 levelsof `byvar', clean local(bylevels)
@@ -149,7 +149,7 @@ foreach lvl of local bylevels {
             local var_super
             local super_var_counter = `super_var_counter' + 1
         }
- 
+
         // Now assign values base on the type of variable
         local check_in_list: list posof "`var'" in norm_vars
         if `check_in_list' > 0 {
@@ -160,7 +160,7 @@ foreach lvl of local bylevels {
             local vmax      = .
             local vother    = r(sd)
         }
- 
+
         local check_in_list: list posof "`var'" in bin_vars
         if `check_in_list' > 0 {
             local var_type  = "Binary"
@@ -171,7 +171,7 @@ foreach lvl of local bylevels {
             su `var'
             local vother    = r(mean) * 100
         }
- 
+
         local check_in_list: list posof "`var'" in skew_vars
         if `check_in_list' > 0 {
             local var_type  = "Skewed"
@@ -181,7 +181,7 @@ foreach lvl of local bylevels {
             local vmax      = r(p75)
             local vother    = .
         }
- 
+
         local check_in_list: list posof "`var'" in range_vars
         if `check_in_list' > 0 {
             local var_type  = "Skewed"
@@ -191,7 +191,7 @@ foreach lvl of local bylevels {
             local vmax      = r(max)
             local vother    = .
         }
- 
+
         local check_in_list: list posof "`var'" in cat_vars
         if `check_in_list' == 0 {
             post `pname' ///
@@ -207,11 +207,11 @@ foreach lvl of local bylevels {
                 (`vmin') ///
                 (`vmax') ///
                 (`vother')
- 
+
             local table_order = `table_order' + 1
             continue
         }
- 
+
         // Need a different approach for categorical variables
         cap restore, not
         preserve
@@ -222,7 +222,7 @@ foreach lvl of local bylevels {
         decode `var', gen(var_sub)
         drop if missing(`var')
         local last = _N
- 
+
         forvalues i = 1/`last' {
             local var_type  = "Categorical"
             local var_sub   = var_sub[`i']
@@ -231,7 +231,7 @@ foreach lvl of local bylevels {
             local vmin      = .
             local vmax      = .
             local vother    = vother[`i']
- 
+
         post `pname' ///
             (`lvl') ///
             (`table_order') ///
@@ -245,12 +245,12 @@ foreach lvl of local bylevels {
             (`vmin') ///
             (`vmax') ///
             (`vother')
- 
- 
+
+
         local table_order = `table_order' + 1
         }
         restore
- 
+
     }
 }
 global lvl_labels `lvl_labels'
@@ -259,14 +259,14 @@ postclose `pname'
 use `pfile', clear
 qui compress
 br
- 
+
 *  ===================================================================
 *  = Now you need to pull in the table row labels, units and formats =
 *  ===================================================================
 spot_label_table_vars
 save ../outputs/tables/$table_name.dta, replace
 order bylevel tablerowlabel var_level var_level_lab
- 
+
 *  ===============================
 *  = Now produce the final table =
 *  ===============================
@@ -274,17 +274,17 @@ order bylevel tablerowlabel var_level var_level_lab
 Now you have a dataset that represents the table you want
 - one row per table row
 - each uniquely keyed
- 
+
 Now make your final table
 All of the code below is generic except for the section that adds gaps
 */
- 
+
 use ../outputs/tables/$table_name.dta, clear
 gen var_label = tablerowlabel
- 
+
 * Define the table row order
 local table_order $table_order
- 
+
 cap drop table_order
 gen table_order = .
 local i = 1
@@ -295,18 +295,18 @@ foreach var of local table_order {
 * CHANGED: 2013-02-07 - try and reverse sort severity categories
 gsort +bylevel +table_order -var_level
 bys bylevel: gen seq = _n
- 
+
 * Now format all the values
 cap drop vcentral_fmt
 cap drop vmin_fmt
 cap drop vmax_fmt
 cap drop vother_fmt
- 
+
 gen vcentral_fmt = ""
 gen vmin_fmt = ""
 gen vmax_fmt = ""
 gen vother_fmt = ""
- 
+
 *  ============================
 *  = Format numbers correctly =
 *  ============================
@@ -343,7 +343,7 @@ gen vbracket = ""
 replace vbracket = "(" + vmin_fmt + "--" + vmax_fmt + ")" if !missing(vmin_fmt, vmax_fmt)
 replace vbracket = "(" + vother_fmt + ")" if !missing(vother_fmt)
 replace vbracket = subinstr(vbracket," ","",.)
- 
+
 * Append units
 * CHANGED: 2013-01-25 - test condition first because unitlabel may be numeric if all missing
 cap confirm string var unitlabel
@@ -352,34 +352,34 @@ if _rc {
     replace unitlabel = "" if unitlabel == "."
 }
 replace tablerowlabel = tablerowlabel + " (" + unitlabel + ")" if !missing(unitlabel)
- 
- 
+
+
 order tablerowlabel vcentral_fmt vbracket
 * NOTE: 2013-01-25 - This adds gaps in the table: specific to this table
- 
+
 br tablerowlabel vcentral_fmt vbracket
- 
- 
+
+
 chardef tablerowlabel vcentral_fmt vbracket, ///
     char(varname) ///
     prefix("\textit{") suffix("}") ///
     values("Characteristic" "Value" "")
- 
+
 listtab_vars tablerowlabel vcentral_fmt vbracket, ///
     begin("") delimiter("&") end(`"\\"') ///
     substitute(char varname) ///
     local(h1)
- 
+
 *  ==============================
 *  = Now convert to wide format =
 *  ==============================
 keep bylevel table_order tablerowlabel vcentral_fmt vbracket seq ///
     varname var_type var_label var_level_lab var_level
- 
+
 chardef tablerowlabel vcentral_fmt, ///
     char(varname) prefix("\textit{") suffix("}") ///
     values("Parameter" "Value")
- 
+
 *  ============================
 *  = Prepare super categories =
 *  ============================
@@ -397,14 +397,14 @@ local super_heading1 "`super_heading1' & \multicolumn{2}{`textwrap'}{Beds availa
 local super_heading1 "`super_heading1' & \multicolumn{2}{`textwrap'}{No beds but discharges pending}"
 local super_heading1 "`super_heading1' & \multicolumn{2}{`textwrap'}{No beds and no discharges pending}"
 local super_heading1 " `super_heading1' \\"
- 
- 
+
+
 xrewide vcentral_fmt vbracket , ///
     i(seq) j(bylevel) ///
     lxjk(nonrowvars)
- 
+
 order seq tablerowlabel vcentral_fmt0 vbracket0 vcentral_fmt1 vbracket1 vcentral_fmt2 vbracket2
- 
+
 * Now add in gaps or subheadings
 save ../data/scratch/scratch.dta, replace
 clear
@@ -420,11 +420,11 @@ foreach var of local table_order {
     replace varname = "`var'" if _n == `word_pos'
     local ++i
 }
- 
+
 joinby varname using ../data/scratch/scratch.dta, unmatched(both)
 gsort +design_order -var_level
 drop seq _merge
- 
+
 *  ==================================================================
 *  = Add a gap row before categorical variables using category name =
 *  ==================================================================
@@ -464,8 +464,8 @@ if "`gaprows'" != "" {
         replace tablerowlabel = tablerowlabel + " `n_percent'" if gaprow == 1
     }
 }
- 
- 
+
+
 *  ================================
 *  = Edits specific to this table =
 *  ================================
@@ -475,8 +475,8 @@ replace tablerowlabel = "\hspace*{1em}--- recommended" if varname == "icu_recomm
 replace tablerowlabel = "\hspace*{1em}--- accepted" if varname == "icu_accept"
 replace tablerowlabel = "\hspace*{1em}--- admitted (within 4 hrs)" if varname == "early4"
 local midrules  `" " \cmidrule(r){2-3}" "\cmidrule(r){4-5}" "\cmidrule(r){6-7}" "'
- 
- 
+
+
 local justify {X[9l]X[r]X[3l]X[r]X[3l]X[r]X[3l]}
 local tablefontsize "\scriptsize"
 local arraystretch 1.0
@@ -505,5 +505,5 @@ listtab tablerowlabel `nonrowvars'  ///
         "\end{tabu} } " ///
         "\label{$table_name} " ///
         "\normalfont")
- 
+
 cap log off
