@@ -18,6 +18,9 @@ Merge in site level characteristics
 clear
 // pull the original data (hour level)
 use ../../spot_study/data/working_occupancy24.dta
+// CHANGED: 2013-03-18 - stay with four hour blocks for computational reasons
+use ../../spot_study/data/working_occupancy.dta
+
 
 replace icnno = lower(icnno)
 replace icode = lower(icode)
@@ -66,9 +69,9 @@ duplicates drop icode, force
 keep icode cmp_beds_persite hes_admissions hes_daycase hes_emergencies ///
 	ccot ccot_days ccot_start ccot_hours all_cc_in_cmp ///
 	studydays tails_all_percent tails_othercc cmp_patients_permonth ///
-	ccot_shift_pattern hes_overnight hes_overnight_k hes_emergx ///
-	hes_emergx_k cmp_beds_perhesadmx cmp_beds_peradmx_k ///
-	patients_perhesadmx patients_perhesadmx_c 
+	ccot_shift_pattern hes_overnight hes_overnight_k hes_overnight_c ///
+	hes_emergx hes_emergx_c hes_emergx_k cmp_beds_perhesadmx cmp_beds_peradmx_k ///
+	patients_perhesadmx patients_perhesadmx_c
 
 tempfile 2merge
 save `2merge', replace
@@ -166,6 +169,12 @@ label define dow ///
 	6 "Sat"
 label values dow dow
 tab dow
+cap drop weekend
+gen weekend = inlist(dow, 0, 6)
+label var weekend "Day of week"
+label define weekend 0 "Monday--Friday"
+label define weekend 1 "Saturday--Sunday", add
+label values weekend weekend
 
 egen pickone_site = tag(icode)
 egen pickone_unit = tag(icnno)
@@ -197,6 +206,21 @@ gen hour = hhC(otimestamp)
 cap drop imscore_p50_k
 egen imscore_p50_k = cut(imscore_p50), at(0,15,18,100) label
 
+// CHANGED: 2013-03-17 - run only for sites in sample
+tempfile 2merge working
+save `working', replace
+use ../data/working.dta, clear
+contract icode
+drop _freq
+save `2merge', replace
+use `working', clear
+merge m:1 icode using `2merge'
+drop if _merge != 3
+drop _merge
+
+count if pickone_site
+count if pickone_unit
+
 duplicates report unit otimestamp
 duplicates drop otimestamp unit, force
 // TODO: 2013-03-12 - work out why you have dups
@@ -216,6 +240,7 @@ site level
 	- CCOT provision
 	- HES overnight
 	- HES emergency case mix
+	- patients_perhesadmx
 unit level
 	- median number of admissions
 	- median severity of illness at admission
@@ -240,107 +265,128 @@ tab cmp_units if pickone_site
 keep if cmp_units == 1
 
 // univariate inspection
-tabstat beds_none, by(ccot_shift_pattern) s(n mean sd) format(%9.3g)
+local inspect_univ = 0
+if `inspect_univ' {
+	tabstat beds_none, by(ccot_shift_pattern) s(n mean sd) format(%9.3g)
 
-tabstat beds_none, by(hes_overnight_k) s(n mean sd) format(%9.3g)
-running beds_none hes_overnight
-// NOTE: 2013-02-19 - non-linear: enter as categorical
-// also looks like this is being driven by a handful of specific hospitals
+	tabstat beds_none, by(hes_overnight_k) s(n mean sd) format(%9.3g)
+	running beds_none hes_overnight
+	// NOTE: 2013-02-19 - non-linear: enter as categorical
+	// also looks like this is being driven by a handful of specific hospitals
 
-tabstat beds_none, by(hes_emergx_k) s(n mean sd) format(%9.3g)
-running beds_none hes_emergencies
-// also enter as categorical
+	tabstat beds_none, by(hes_emergx_k) s(n mean sd) format(%9.3g)
+	running beds_none hes_emergencies
+	// also enter as categorical
 
-running beds_none admx_p50
-// clear bump at the bottomr
-* gen admx_low = admx_p50 < 50
-* label var admx_low "<50 CMP admissions per month"
-tabstat beds_none, by(admx_low) s(n mean sd) format(%9.3g)
+	running beds_none admx_p50
+	// clear bump at the bottomr
+	* gen admx_low = admx_p50 < 50
+	* label var admx_low "<50 CMP admissions per month"
+	tabstat beds_none, by(admx_low) s(n mean sd) format(%9.3g)
 
-running beds_none imscore_p50
-// NOTE: 2013-02-19 - flat to 15 then increasing
-// maybe best fit as fracpoly but this will be slow / tricky multilevel
-// categorise for now
-su imscore_p50, d
-// cut at 2,3rd quartile ... but no difference between 1-2 and 3
-// just pick out the top quartile
+	running beds_none imscore_p50
+	// NOTE: 2013-02-19 - flat to 15 then increasing
+	// maybe best fit as fracpoly but this will be slow / tricky multilevel
+	// categorise for now
+	su imscore_p50, d
+	// cut at 2,3rd quartile ... but no difference between 1-2 and 3
+	// just pick out the top quartile
 
-tabstat beds_none, by(imscore_p50_k) s(n mean sd) format(%9.3g)
-* cap drop imscore_p50_high
-* gen imscore_p50_high = imscore_p50 >= 18
-* label var imscore_p50_high "4th quartile median ICNARC score"
-tabstat beds_none, by(imscore_p50_high) s(n mean sd) format(%9.3g)
+	tabstat beds_none, by(imscore_p50_k) s(n mean sd) format(%9.3g)
+	* cap drop imscore_p50_high
+	* gen imscore_p50_high = imscore_p50 >= 18
+	* label var imscore_p50_high "4th quartile median ICNARC score"
+	tabstat beds_none, by(imscore_p50_high) s(n mean sd) format(%9.3g)
 
-running beds_none admx_elsurg
-// NOTE: 2013-02-19 - no clear signal but maybe higher when low
-su admx_elsurg if pickone_site, d
-* gen admx_elsurg_low = admx_elsurg < 0.1
-* label var admx_elsurg_low "<10% elective surgical case mix"
+	running beds_none admx_elsurg
+	// NOTE: 2013-02-19 - no clear signal but maybe higher when low
+	su admx_elsurg if pickone_site, d
+	* gen admx_elsurg_low = admx_elsurg < 0.1
+	* label var admx_elsurg_low "<10% elective surgical case mix"
 
-running beds_none cmp_beds_max
-// NOTE: 2013-02-19 - very interesting: decr risk but flat after 20
-// clear policy implicaton: don't have units smaller than 15-20 beds
-su cmp_beds_max if pickone_site, d
-* gen small_unit = cmp_beds_max < 10
-* label var small_unit "<10 beds"
-tabstat beds_none, by(small_unit) s(n mean sd) format(%9.3g)
+	running beds_none cmp_beds_max
+	// NOTE: 2013-02-19 - very interesting: decr risk but flat after 20
+	// clear policy implicaton: don't have units smaller than 15-20 beds
+	su cmp_beds_max if pickone_site, d
+	* gen small_unit = cmp_beds_max < 10
+	* label var small_unit "<10 beds"
+	tabstat beds_none, by(small_unit) s(n mean sd) format(%9.3g)
 
-tabstat beds_none, by(tofd) s(n mean sd) format(%9.3g)
-// categorical
+	tabstat beds_none, by(tofd) s(n mean sd) format(%9.3g)
+	// categorical
 
-tabstat beds_none, by(dow) s(n mean sd) format(%9.3g)
-* gen satsunmon = inlist(dow,0,1,6)
-* label var satsunmon "Sat-Sun-Mon"
+	tabstat beds_none, by(dow) s(n mean sd) format(%9.3g)
+	* gen satsunmon = inlist(dow,0,1,6)
+	* label var satsunmon "Sat-Sun-Mon"
 
-tabstat beds_none, by(month) s(n mean sd) format(%9.3g)
-* gen decjanfeb = inlist(month,11,12,1)
-* label var decjanfeb "Dec-Jan-Feb"
+	tabstat beds_none, by(month) s(n mean sd) format(%9.3g)
+	* gen decjanfeb = inlist(month,11,12,1)
+	* label var decjanfeb "Dec-Jan-Feb"
+}
 
 *  =====================
 *  = Now run the model =
 *  =====================
-use ../data/scratch/scratch, clear
-xtset unit otimestamp, delta(1 hours)
 
+use ../data/scratch/scratch.dta, clear
+// CHANGED: 2013-03-18 - just work within sites in early arm with one unit
+
+count
+count if pickone_site
+count if pickone_unit
+
+// CHANGED: 2013-03-18 - although not perfect use same variable spec as in other models
+// use weekend instead of sat-sun-mon
+// cmp_beds_max instead of smallunit
 local ivars ///
+	hes_overnight_c ///
+	hes_emergx_c ///
+	patients_perhesadmx_c ///
+	cmp_beds_max ///
 	ib3.ccot_shift_pattern ///
-	i.hes_overnight_k ///
-	i.hes_emergx_k ///
-	admx_low ///
-	imscore_p50_high ///
-	admx_elsurg_low ///
-	small_unit ///
-	i.hour ///
-	i.dow ///
-	decjanfeb
+	admx_p50 ///
+	admx_elsurg ///
+	imscore_p50 ///
+	decjanfeb ///
+	weekend ///
+	i.hour
 
 global ivars `ivars'
 
 // parsimonious form
-local ivars ///
-	ib3.ccot_shift_pattern ///
-	i.hes_overnight_k ///
-	i.hes_emergx_k ///
-	admx_low ///
-	ib0.tofd ///
-	imscore_p50_high ///
-	admx_elsurg_low ///
-	small_unit ///
-	satsunmon ///
-	decjanfeb
+local parsimonious = 0
+if `parsimonious' == 1 {
+	local ivars ///
+		ib3.ccot_shift_pattern ///
+		i.hes_overnight_k ///
+		i.hes_emergx_k ///
+		admx_low ///
+		ib0.tofd ///
+		imscore_p50_high ///
+		admx_elsurg_low ///
+		small_unit ///
+		satsunmon ///
+		decjanfeb
 
-global ivars `ivars'
+	global ivars `ivars'
+}
 
 local debug = 0
 if `debug' == 1 {
-	// keep if site <= 30
+	keep if site <= 30
 	keep if month(dofC(otimestamp)) == 3
 	count
 }
 
 set matsize 10000
-// proposed command
-xtgee beds_none $ivars, family(binomial 1) link(logit) corr(ar 1)
+*  ========================
+*  = Estimate using xtgee =
+*  ========================
+/*
+- robust standard errors given you have units within the same site
+- ar 1 correlation
+*/
+xtgee beds_none $ivars, family(binomial 1) link(logit) corr(ar 1) vce(robust)
 
 * logistic beds_none $ivars, vce(robust)
 * xtset site
@@ -350,10 +396,17 @@ estimates save ../data/estimates/occupancy_2level.ster, replace
 *  ============================================
 *  = Produce a model results table for thesis =
 *  ============================================
+use ../data/scratch/scratch.dta, clear
 qui include mt_Programs
 estimates use ../data/estimates/occupancy_2level.ster
+estimates esample: ///
+	hes_overnight_c hes_emergx_c patients_perhesadmx_c cmp_beds_max ///
+	ccot_shift_pattern admx_p50 admx_elsurg imscore_p50 ///
+	decjanfeb weekend hour
+
 // replay
-xtlogit
+// NOTE: 2013-03-18 - note groups = 48 with 45 sites b/c 3 sites have 2 units
+xtgee
 tempfile temp1
 parmest , ///
 	eform ///
@@ -367,20 +420,20 @@ mt_extract_varname_from_parm
 spot_label_table_vars
 // now produce table order
 global table_order ///
-	hes_overnight hes_emergx ccot_shift_pattern ///
+	hes_overnight hes_emergx patients_perhesadmx ccot_shift_pattern ///
 	gap_here ///
-	small_unit admx_low admx_elsurg_low imscore_p50_high ///
+	cmp_beds_max admx_p50 admx_elsurg imscore_p50 ///
 	gap_here ///
-	tofd satsunmon decjanfeb
+	decjanfeb weekend hour
 mt_table_order
 sort table_order var_level
 // indent categorical variables
 mt_indent_categorical_vars
 
-ingap 1 15 19
+ingap 1 9 13
 replace tablerowlabel = "\textit{Site factors}" if _n == 1
-replace tablerowlabel = "\textit{Unit factors}" if _n == 16
-replace tablerowlabel = "\textit{Timing factors}" if _n == 21
+replace tablerowlabel = "\textit{Unit factors}" if _n == 10
+replace tablerowlabel = "\textit{Timing factors}" if _n == 15
 
 
 sdecode estimate, format(%9.2fc) gen(est)
@@ -436,11 +489,13 @@ listtab `cols' ///
 
 di as result "Created and exported `table_name'"
 
-exit
 
 *  =====================
 *  = Run 3 level model =
 *  =====================
+// CHANGED: 2013-03-18 - this does not account for the AR1 structure
+// and it takes days to fit
+exit
 use ../data/working_occupancy.dta, clear
 * NOTE: 2013-02-19 - see p.447 Rabe-Hesketh and Skrondal
 * the ordering of the vars in i is important (goes up the levels)
