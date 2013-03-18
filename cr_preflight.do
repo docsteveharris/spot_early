@@ -45,14 +45,20 @@ tab _valid_row
 duplicates example _list_unusual if _count_unusual > 0
 duplicates example _list_imposs if _count_imposs > 0
 
-keep if _valid_row
+* CHANGED: 2013-03-11 - keep these so you stay consistent with CONSORT
+* You may need to drop them from survival analyses
+* keep if _valid_row
+replace v_timestamp = . if strpos(_list_imposschks,"icu_admit_before_visit") > 0
+replace date_trace = . if strpos(_list_imposschks,"MRIS_ICNARC_death_mismatch") > 0
 
 *  ============================
 *  = Merge in site level data =
 *  ============================
 
 merge m:1 icode using ../data/sites.dta, ///
-	keepusing(ccot ccot_days ccot_start ccot_hours ccot_shift_pattern ///
+	keepusing( ///
+		ccot ccot_days ccot_start ccot_hours ccot_shift_pattern ///
+		ccot_senior ccot_consultant ///
 		cmp_patients_permonth tails_othercc all_cc_in_cmp ///
 		hes_admissions hes_emergencies hes_daycase ///
 		tails_all_percent cmp_beds_persite studydays)
@@ -99,13 +105,12 @@ gen small_unit = cmp_beds_max < 10
 label var small_unit "<10 beds"
 
 cap drop patients_perhesadmx
-gen patients_perhesadmx = (count_patients / hes_admissions * 1000)
-label var patients_perhesadmx "Standardised monthly ward referrals"
+gen patients_perhesadmx = (count_patients / hes_overnight * 12 )
+label var patients_perhesadmx "Ward referrals per 1000 admissions"
 qui su patients_perhesadmx
+cap drop patients_perhesadmx_c
 gen patients_perhesadmx_c = patients_perhesadmx - r(mean)
-label var patients_perhesadmx_c "Standardised monthly ward referrals (centred)"
-cap drop patients_perhesadmx_k
-egen patients_perhesadmx_k = cut(patients_perhesadmx), at(0, 0.5, 1,100) label
+label var patients_perhesadmx_c "Ward referrals per 1000 admission (centred)"
 
 
 xtile count_patients_q5 = count_patients, nq(5)
@@ -136,7 +141,6 @@ label var cc_now "Higher level of care - now"
 label values cc_now truefalse
 
 * What was recommended
-* - defaults to zero
 tab v_ccmds_rec, miss
 cap drop cc_recommended
 gen cc_recommended = 0
@@ -198,6 +202,14 @@ label define route_to_icu ///
 label values route_to_icu route_to_icu
 label var route_to_icu "ICU admission pathway"
 
+* NOTE: 2012-09-27 - get more precise survival timing for those who die in ICU
+* Add one hour though else ICU discharge and last_trace at same time
+* this would mean these records being dropped by stset
+* CHANGED: 2012-10-02 - changed to 23:59:00 from 23:59:59 because of rounding errors
+gen double last_trace = cofd(date_trace) + hms(23,58,00)
+replace last_trace = icu_discharge if dead_icu == 1 & !missing(icu_discharge)
+format last_trace %tc
+label var last_trace "Timestamp last event"
 
 gen male=sex==1
 label var male "Sex"
@@ -216,7 +228,9 @@ gen sepsis_severity = sepsis2001
 replace sepsis_severity = 4 if inlist(sepsis2001, 4,5,6)
 label var sepsis_severity "Sepsis severity"
 label copy sepsis2001 sepsis_severity
+label define sepsis_severity 0 "Neither SIRS nor sepsis", modify
 label define sepsis_severity 4 "Septic shock" 5 "" 6 "", modify
+label values sepsis_severity sepsis_severity
 tab sepsis_severity
 
 cap drop sepsis_dx
@@ -393,6 +407,9 @@ label define month ///
 label values visit_month month
 tab visit_month
 
+gen decjanfeb = inlist(visit_month,12,1,2)
+label var decjanfeb "Winter"
+
 cap drop weekend
 gen weekend = inlist(visit_dow, 0, 6)
 label var weekend "Day of week"
@@ -419,8 +436,9 @@ label values out_of_hours out_of_hours
 * merge m:1 icode using ../data/sites.dta, ///
 * 	keepusing(ccot ccot_days ccot_start ccot_hours ccot_shift_pattern)
 
-* drop if _m != 3
-* drop _m
+// CCOT senior - tidy
+replace ccot_senior = "" if ccot_senior == "0"
+replace ccot_senior = "8" if ccot_senior == "8b"
 
 * NOTE: 2012-10-05 - defaults to no ccot: seems sensible but a discussion point
 gen ccot_on = 0
