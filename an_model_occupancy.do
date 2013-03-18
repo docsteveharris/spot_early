@@ -17,8 +17,10 @@ Merge in site level characteristics
 
 clear
 // pull the original data (hour level)
-use ../../spot_study/data/working_occupancy24.dta
+* ! cp ~/data/spot_study/data/working_occupancy24.dta ../data/working_occupancy24.dta
+* use ../../spot_study/data/working_occupancy24.dta
 // CHANGED: 2013-03-18 - stay with four hour blocks for computational reasons
+! cp ~/data/spot_study/data/working_occupancy.dta ../data/working_occupancy.dta
 use ../../spot_study/data/working_occupancy.dta
 
 
@@ -434,16 +436,33 @@ ingap 1 9 13
 replace tablerowlabel = "\textit{Site factors}" if _n == 1
 replace tablerowlabel = "\textit{Unit factors}" if _n == 10
 replace tablerowlabel = "\textit{Timing factors}" if _n == 15
+ingap 10 15
 
 
+clonevar min95_raw = min95
+clonevar max95_raw = max95
 sdecode estimate, format(%9.2fc) gen(est)
 sdecode min95, format(%9.2fc) replace
 sdecode max95, format(%9.2fc) replace
-sdecode p, format(%9.2fc) replace
+sdecode p, format(%9.3fc) replace
 replace p = "<0.001" if p == "0.000"
 gen est_ci95 = "(" + min95 + "--" + max95 + ")" if !missing(min95, max95)
 replace est = "--" if reference_cat == 1
 replace est_ci95 = "" if reference_cat == 1
+
+// now calculate baseline risk
+// convert values back to linear form by log before running invlogit
+cap drop risk risk_min95 risk_max95
+gen risk = invlogit(log(estimate))
+gen risk_min95 = invlogit(log(min95_raw))
+gen risk_max95 = invlogit(log(max95_raw))
+sdecode risk, format(%9.2fc) replace
+sdecode risk_min95, format(%9.2fc) replace
+sdecode risk_max95, format(%9.2fc) replace
+replace est = risk if parm == "_cons"
+replace est_ci95 = "(" + risk_min95 + "--" + risk_max95 + ")" if parm == "_cons"
+replace tablerowlabel = "Baseline risk (Unit full)" if parm == "_cons"
+ingap 27
 
 * now write the table to latex
 order tablerowlabel var_level_lab est est_ci95 p
@@ -453,96 +472,35 @@ cap br
 
 local table_name occupancy_2level
 local h1 "Parameter & Odds ratio & (95\% CI) & p \\ "
-local justify lrll
+local justify lrlr
 * local justify X[5l] X[1l] X[2l] X[1r]
 local tablefontsize "\scriptsize"
 local arraystretch 1.0
 local taburowcolors 2{white .. white}
+// CHANGED: 2013-03-18 - work out how to extract cluster level variance from xtgee
 local rho: di %9.3fc `=e(rho)'
-local f1 "Intraclass correlation & `rho' &&} \\"
-di "`f1'"
+local f1 "Intraclass correlation & `rho' && \\"
+// di "`f1'"
 
 listtab `cols' ///
 	using ../outputs/tables/`table_name'.tex ///
-	if parm != "_cons", ///
+	, ///
 	replace ///
 	begin("") delimiter("&") end(`"\\"') ///
 	headlines( ///
 		"`tablefontsize'" ///
 		"\renewcommand{\arraystretch}{`arraystretch'}" ///
-		"\sffamily{" ///
 		"\taburowcolors `taburowcolors'" ///
-		"\begin{tabu} to " ///
-		"\textwidth {`justify'}" ///
+		"\begin{tabu} {`justify'}" ///
 		"\toprule" ///
 		"`h1'" ///
 		"\midrule" ) ///
 	footlines( ///
-		"\midrule" ///
-		"`f1'" ///
 		"\bottomrule" ///
-		"\end{tabu} } " ///
+		"\end{tabu} " ///
 		"\label{`table_name'} " ///
-		"\normalfont" ///
-		"\normalsize")
+		"\normalfont")
 
 
 di as result "Created and exported `table_name'"
-
-
-*  =====================
-*  = Run 3 level model =
-*  =====================
-// CHANGED: 2013-03-18 - this does not account for the AR1 structure
-// and it takes days to fit
-exit
-use ../data/working_occupancy.dta, clear
-* NOTE: 2013-02-19 - see p.447 Rabe-Hesketh and Skrondal
-* the ordering of the vars in i is important (goes up the levels)
-
-tab ccot_shift_pattern, gen(ccot_)
-tab hes_overnight_k, gen(hes_o_)
-tab hes_emergx_k, gen(hes_e_)
-tab tofd, gen(tofd_)
-
-local ivars_long ///
-	ccot_1 ccot_2 ccot_3 ///
-	hes_o_2 hes_o_3 hes_o_4 ///
-	hes_e_2 hes_e_3 ///
-	tofd_1 tofd_2 ///
-	imscore_p50_high ///
-	admx_elsurg_low ///
-	small_unit ///
-	satsunmon ///
-	decjanfeb
-
-// NOTE: 2013-02-22 - use only 5 quadrature points b/c this is slow
-// and ordinary quadrature
-// then take the estimates from this to run the default spec
-// which is 8 points and adaptive quadrature
-global ivars_long `ivars_long'
-gllamm beds_none $ivars_long ///
-	, ///
-	family(binomial) ///
-	link(logit) ///
-	i(unit site) ///
-	nip(5) ///
-	eform
-
-estimates save ../data/estimates/occupancy_3level_step1.ster, replace
-
-matrix a = e(b)
-gllamm beds_none $ivars_long ///
-	, ///
-	family(binomial) ///
-	link(logit) ///
-	i(unit site) ///
-	nip(8) ///
-	eform ///
-	from(a) adapt
-
-estimates save ../data/estimates/occupancy_3level.ster, replace
-*  ========================================
-*  = Now output model as table for thesis =
-*  ========================================
 
