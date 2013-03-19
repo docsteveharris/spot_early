@@ -371,7 +371,7 @@ foreach model of global models {
 	binreg dead28 early4 [pw=`model'_iptw_att] ///
 		if `model'_cs_N10_90 ///
 		, ///
-		rd
+		rd vce(robust)
 	lincom early4
 	local att = r(estimate)
 	local atts e= r(se)

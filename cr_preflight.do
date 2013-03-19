@@ -29,7 +29,9 @@ label define quantiles 5 "5th", add
 
 
 sort idvisit
+cap drop id
 gen id=_n
+cap drop site
 encode icode, gen(site)
 label var site "Study site"
 
@@ -206,6 +208,7 @@ label var route_to_icu "ICU admission pathway"
 * Add one hour though else ICU discharge and last_trace at same time
 * this would mean these records being dropped by stset
 * CHANGED: 2012-10-02 - changed to 23:59:00 from 23:59:59 because of rounding errors
+cap drop last_trace
 gen double last_trace = cofd(date_trace) + hms(23,58,00)
 replace last_trace = icu_discharge if dead_icu == 1 & !missing(icu_discharge)
 format last_trace %tc
