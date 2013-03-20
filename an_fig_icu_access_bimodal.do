@@ -35,6 +35,8 @@ foreach var in recommend accept deliver {
 
 save ../data/scratch.dta, replace
 use ../data/scratch.dta, clear
+// CHANGED: 2013-03-20 - removed the text (A) since will only show this figure now
+// text(1 20 "(A)", placement(e) size(large)) ///
 tw ///
 	(rarea recommend_max95 recommend_min95 age, sort pstyle(ci)) ///
 	(line recommend_prob age, sort connect(direct) lpattern(dot)) ///
@@ -47,7 +49,6 @@ tw ///
 	yscale(noextend) ///
 	ylabel(0(0.25)1, nogrid) ///
 	ytitle("Unadjusted probability") ///
-	text(1 20 "(A)", placement(e) size(large)) ///
 	legend( ///
 		order(2 3 4) ///
 		title("Critical care", size(medsmall) placement(9) justification(left)) ///
@@ -66,9 +67,15 @@ graph rename icu_by_age, replace
 graph export ../outputs/figures/icu_by_age.pdf, replace ///
 	name(icu_by_age)
 
+exit
 *  ===============
 *  = by severity =
 *  ===============
+// NOTE: 2013-03-20 - I think the FP overfits this: no effect seen when examining the raw times
+cap drop icnarc_k
+egen icnarc_k = cut(icnarc0), at(0(5)50, 100)
+tabstat time2icu, by(icnarc_k) s(n mean sd min q max) format(%9.3g)
+
 cap drop *_prob *_stdp *_*95 *_logit
 cap rename early4 icu_deliver
 foreach var in recommend accept deliver {
