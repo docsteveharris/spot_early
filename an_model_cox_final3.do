@@ -259,7 +259,7 @@ global confounders_notvc_nofactors ///
 	v_ccmds_1 v_ccmds_3 v_ccmds_4 ///
 	sepsis_dx_2-sepsis_dx_5 ///
 	periarrest ///
-	cc_recommended 
+	cc_recommended
 
 // double check this model is the same as the stata generated one above
 local double_check = 0
@@ -345,12 +345,12 @@ margins, at(icu_delay_nospike_lt3 0(0.1)1)
 use ../data/scratch/scratch.dta, clear
 
 // start with severity as a non-TVC
-stcox early4 $confounders_notvc icnarc0_c
+stcox early4 $confounders_notvc icnarc0_c, shared(site) nolog noshow
 est store m1
 // run the model using the un-centred version of icnarc_c: easier for margins plots
-stcox i.early4##c.icnarc0 $confounders_notvc 
+stcox i.early4##c.icnarc0 $confounders_notvc, shared(site) nolog noshow
 est store m2
-// do not directly compare the co-efficient for early4 from this model without converting 
+// do not directly compare the co-efficient for early4 from this model without converting
 // back to the centred level
 su icnarc0 if ppsample
 lincom 1.early4 + `=r(mean)'*1.early4#c.icnarc0, eform
@@ -394,16 +394,73 @@ graph export ../outputs/figures/margins_early_severity.pdf ///
 *  ==========================================================
 *  = Now check the benefit of improving severity adjustment =
 *  ==========================================================
-stcox early4 $confounders_notvc icnarc0
+stcox early4 $confounders_notvc icnarc0 ///
+	, shared(site) nolog noshow
 est store m1
-stcox early4 $confounders_notvc icnarc0 news_score sofa_score
+stcox early4 $confounders_notvc icnarc0 news_score sofa_score ///
+	, shared(site) nolog noshow
 est store m2
 est stats m1 m2
 // marked improvement in model fit
 // marked decrease in significance of early4
-stcox early4##c.icnarc0 $confounders_notvc news_score sofa_score
+stcox early4##c.icnarc0 $confounders_notvc news_score sofa_score ///
+	, shared(site) nolog noshow
 est store m3
 // now this is hard to intepret
+
+margins early4, at( icnarc0=(0/50)) atmeans noatlegend post
+est store m3_margins
+// save this because it takes ages to re-run
+estimates save ../data/estimates/margins_early_severity_3, replace
+
+marginsplot, ///
+	xdimension(at(icnarc0)) ///
+	recast(scatter) ///
+	plotopts(msize(vsmall) msymbol(diamond)) ///
+	ciopts(msize(zero)) ///
+	plot1opts(mcolor(red)) ///
+	ci1opts(lcolor(red)) ///
+	plot2opts(mcolor(blue)) ///
+	ci2opts(lcolor(blue)) ///
+	xscale(noextend) ///
+	xtitle("ICNARC acute physiology score") ///
+	yscale(noextend) ///
+	ylab(,nogrid) ///
+	title("") ///
+	legend(position(3))
+
+graph rename margins_early_severity_3, replace
+graph export ../outputs/figures/margins_early_severity_3.pdf ///
+    , name(margins_early_severity_3) replace
+
+
+*  ==================================
+*  = Now explore non-linear effects =
+*  ==================================
+/*
+enter the severity - early interaction as a factor variable so 
+directon of effect can vary as wished
+*/
+
+stcox early4##i.icnarc_q10 $confounders_notvc ///
+	, shared(site) nolog noshow
+margins icnarc_q10, at(early4=(0 1)) atmeans noatlegend post
+est store m3_margins
+estimates save ../data/estimates/margins_early_factor, replace
+
+marginsplot ///
+	, ///
+	plot1opts(lcolor("227 6 28")) ///
+	plot2opts(lcolor("227 6 28")) ///
+	plot3opts(lcolor("198 11 57")) ///
+	plot4opts(lcolor("170 17 85")) ///
+	plot5opts(lcolor("142 23 113")) ///
+	plot6opts(lcolor("113 28 142")) ///
+	plot7opts(lcolor("85 34 170")) ///
+	plot8opts(lcolor("57 40 198")) ///
+	plot9opts(lcolor("28 45 227")) ///
+	plot10opts(lcolor("0 51 255")) ///
+	legend(position(3))
 
 
 cap log close

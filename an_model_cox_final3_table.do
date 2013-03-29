@@ -29,7 +29,7 @@ global confounders_tvc ///
 	icnarc0_c ///
 	icnarc0_c_1_f ///
 	icnarc0_c_3_f ///
-	icnarc0_c_7_f 
+	icnarc0_c_7_f
 
 *  ========================
 *  = Univariate estimates =
@@ -132,6 +132,8 @@ stcox $confounders_notvc $confounders_tvc ///
 
 local model_name full selection_bias
 est store full1
+// save the estimates separately so you plot the residuals to check for PH violation
+est save ../data/estimates/cox_final3_full1, replace
 parmest, ///
 	eform ///
 	label list(parm label estimate min* max* p) ///
@@ -159,8 +161,11 @@ stcox $confounders_notvc $confounders_tvc ///
 	, shared(site) nolog noshow
 //	icu_delay_nospike icu_delay_zero
 
+
 local model_name full information_bias
 est store full2
+// save the estimates separately so you plot the residuals to check for PH violation
+est save ../data/estimates/cox_final3_full2, replace
 parmest, ///
 	eform ///
 	label list(parm label estimate min* max* p) ///
@@ -296,22 +301,25 @@ listtab `cols' ///
 	footlines( ///
 		"\bottomrule" ///
 		"\end{tabu}  " ///
-		"\label{tab: $table_name} ") 
+		"\label{tab:$table_name} ")
 
-*  ==========================
-*  = Final best model table =
-*  ==========================
+*  =================================
+*  = Final Early vs deferred table =
+*  =================================
 // now produce the final table with 95% CI etc in usual format
-gen estimate = est_raw_4
-gen min95 = min95_4
-gen max95 = max95_4
-gen p = p_4
+cap drop estimate min95 max95 p
+gen estimate = est_raw_3
+gen min95 = min95_3
+gen max95 = max95_3
+gen p = p_3
 
+cap drop est
 sdecode estimate, format(%9.2fc) gen(est)
 sdecode min95, format(%9.2fc) replace
 sdecode max95, format(%9.2fc) replace
 sdecode p, format(%9.3fc) replace
 replace p = "<0.001" if p == "0.000"
+cap drop est_ci95
 gen est_ci95 = "(" + min95 + "--" + max95 + ")" if !missing(min95, max95)
 replace est = "--" if reference_cat == 1
 replace est_ci95 = "" if reference_cat == 1
@@ -322,8 +330,66 @@ local cols tablerowlabel est est_ci95 p
 order `cols'
 cap br
 
-local table_name cox_final3_best
-local h1 "Parameter & Odds ratio & (95\% CI) & p \\ "
+local table_name cox_deferred
+local h1 "Parameter & Hazard Ratio & (95\% CI) & p \\ "
+local justify lrll
+* local justify X[5l] X[1l] X[2l] X[1r]
+local tablefontsize "\scriptsize"
+local arraystretch 1.0
+local taburowcolors 2{white .. white}
+
+listtab `cols' ///
+	using ../outputs/tables/`table_name'.tex ///
+	if !inlist(_n,25,26), ///
+	replace ///
+	begin("") delimiter("&") end(`"\\"') ///
+	headlines( ///
+		"`tablefontsize'" ///
+		"\renewcommand{\arraystretch}{`arraystretch'}" ///
+		"\taburowcolors `taburowcolors'" ///
+		"\begin{tabu} to " ///
+		"\textwidth {`justify'}" ///
+		"\toprule" ///
+		"`h1'" ///
+		"\midrule" ) ///
+	footlines( ///
+		"\bottomrule" ///
+		"\end{tabu} " ///
+		"\label{tab:`table_name'} ") ///
+
+
+
+
+*  ===================
+*  = Final TVC table =
+*  ===================
+// now produce the final table with 95% CI etc in usual format
+cap drop estimate min95 max95 p
+gen estimate = est_raw_4
+gen min95 = min95_4
+gen max95 = max95_4
+gen p = p_4
+
+cap drop est
+sdecode estimate, format(%9.2fc) gen(est)
+sdecode min95, format(%9.2fc) replace
+sdecode max95, format(%9.2fc) replace
+sdecode p, format(%9.3fc) replace
+replace p = "<0.001" if p == "0.000"
+cap drop est_ci95
+gen est_ci95 = "(" + min95 + "--" + max95 + ")" if !missing(min95, max95)
+replace est = "--" if reference_cat == 1
+replace est_ci95 = "" if reference_cat == 1
+
+* now write the table to latex
+ingap 25
+order tablerowlabel var_level_lab est est_ci95 p
+local cols tablerowlabel est est_ci95 p
+order `cols'
+cap br
+
+local table_name cox_time_varying
+local h1 "Parameter & Hazard Ratio & (95\% CI) & p \\ "
 local justify lrll
 * local justify X[5l] X[1l] X[2l] X[1r]
 local tablefontsize "\scriptsize"
