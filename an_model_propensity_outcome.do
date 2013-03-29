@@ -5,7 +5,9 @@
 GenericSetupSteveHarris spot_early an_model_propensity_outcome, logon
 
 /*
-
+modified:	130329
+- this is an old file and should probably be deprecated soon
+- but it contains your optmatch code ...
 */
 
 
@@ -46,6 +48,7 @@ egen patients_perhesadmx_k = cut(patients_perhesadmx), at(0, 0.5, 1,100) label
 save ../data/scratch/scratch.dta, replace
 use ../data/scratch/scratch.dta, clear
 
+// NOTE: 2013-03-29 - prev using early4_prscore 1--4 but these are old
 // now bring in your saved estimates
 forvalues i = 1/4 {
 	estimates use ../data/estimates/early4_prscore`i'.ster

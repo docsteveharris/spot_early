@@ -6,7 +6,7 @@
 * be needed to work out occupancy and ccot shift patterns
 
 
-local debug = 0
+local debug = 1
 // override local debug settings
 if $debug == 0 local debug = 0
 if `debug' {
@@ -650,6 +650,67 @@ foreach var of varlist * {
 * 	icnno adno response_tails_note response_heads response_heads_note ///
 * 	notes_light daicu taicu withinsh ddicu tdicu _list_unusualchks ///
 * 	_list_imposschks exclude3 included_sites included_months
+
+*  ===============================
+*  = Global variable definitions =
+*  ===============================
+
+// categorical version
+global prvars_k ///
+	i.hes_overnight_k ///
+	i.hes_emergx_k ///
+	patients_perhesadmx_c ///
+	ib3.ccot_shift_pattern ///
+	i.cmp_beds_peradmx_k ///
+	weekend ///
+	out_of_hours ///
+	ib2.age_k ///
+	male ///
+	periarrest ///
+	sepsis1_b ///
+	i.v_ccmds ///
+	i.icnarc_q10 ///
+	i.v_ccmds
+// using continuous variables where possible
+// CHANGED: 2013-03-15 - keep age as categorical
+// CHANGED: 2013-03-29 - keep sepsis as categories, cmp_beds_max as cont (more similar to other models)
+global prvars_c ///
+	i.hes_overnight_k ///
+	i.hes_emergx_k ///
+	patients_perhesadmx_c ///
+	ib3.ccot_shift_pattern ///
+	cmp_beds_max ///
+	weekend ///
+	out_of_hours ///
+	beds_none ///
+	ib2.age_k ///
+	male ///
+	periarrest ///
+	i.sepsis_dx ///
+	i.v_ccmds ///
+	icnarc0_c ///
+	i.v_ccmds
+
+global prvars_site ///
+	i.hes_overnight_k ///
+	i.hes_emergx_k ///
+	patients_perhesadmx_c ///
+	ib3.ccot_shift_pattern ///
+	cmp_beds_max ///
+
+
+global prvars_timing ///
+	weekend ///
+	out_of_hours ///
+
+global prvars_patient ///
+	age_c ///
+	male ///
+	periarrest ///
+	i.sepsis_dx ///
+	i.v_ccmds ///
+	icnarc0_c
+
 
 
 cap drop __*

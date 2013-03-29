@@ -1,11 +1,12 @@
 *  =============================
 *  = Generate propensity score =
 *  =============================
+
 /*
 NOTE: 2013-02-23 - you may want to convert this to a cr_ file or
 just save the estimates and replay them in the cr file
-
 */
+
 /*
 ### Notes on using psmatch2
 ___________________________
@@ -79,7 +80,7 @@ tab dead28
 tab early4
 
 local premodel_checks = 0
-if `premodel_checks' {
+if `premodel_checks' == 1{
 
 	// check for collinearity
 	collin hes_overnight ///
@@ -120,7 +121,8 @@ if `premodel_checks' {
 		// assoc with outcome and exposure but v weak on running
 
 		// CHANGED: 2013-03-03 - move this to earlier in the file to avoid running all checks
-		// egen patients_perhesadmx_k = cut(patients_perhesadmx), at(0, 0.5, 1,100) label
+		cap drop patients_perhesadmx_k
+		egen patients_perhesadmx_k = cut(patients_perhesadmx), at(0, 0.5, 1,100) label
 		tabstat `var', by(patients_perhesadmx_k) s(n mean sd ) format(%9.3g)
 		running `var' patients_perhesadmx, ci
 		graph rename plot_`var'_`plot', replace
@@ -178,43 +180,7 @@ if `premodel_checks' {
 
 estimates drop _all
 
-// categorical version
-global prvars_k ///
-	i.hes_overnight_k ///
-	i.hes_emergx_k ///
-	i.patients_perhesadmx_k ///
-	ib3.ccot_shift_pattern ///
-	i.cmp_beds_peradmx_k ///
-	weekend ///
-	out_of_hours ///
-	ib2.age_k ///
-	male ///
-	periarrest ///
-	sepsis1_b ///
-	i.v_ccmds ///
-	i.icnarc_q10 ///
-	i.v_ccmds
-
-
-// using continuous variables where possible
-// CHANGED: 2013-03-15 - keep age as categorical
-global prvars_c ///
-	i.hes_overnight_k ///
-	i.hes_emergx_k ///
-	i.patients_perhesadmx_k ///
-	ib3.ccot_shift_pattern ///
-	small_unit ///
-	weekend ///
-	out_of_hours ///
-	beds_none ///
-	ib2.age_k ///
-	male ///
-	periarrest ///
-	sepsis1_b ///
-	i.v_ccmds ///
-	icnarc0_c ///
-	i.v_ccmds
-
+// CHANGED: 2013-03-29 - moved variable definitions to preflight
 
 logistic early4 $prvars_c
 // check model fit with continuous: nearly linear so keep this way?
@@ -254,25 +220,7 @@ estimates stats prscore1_k prscore1_c
 use ../data/working_postflight.dta, clear
 est drop _all
 
-global prvars_site ///
-	i.hes_overnight_k ///
-	i.hes_emergx_k ///
-	i.patients_perhesadmx_k ///
-	ib3.ccot_shift_pattern ///
-	small_unit ///
-
-
-global prvars_timing ///
-	weekend ///
-	out_of_hours ///
-
-global prvars_patient ///
-	age_c ///
-	male ///
-	periarrest ///
-	sepsis1_b ///
-	i.v_ccmds ///
-	icnarc0_c
+* NOTE: 2013-03-29 - global variable definitions prvars_* moved to preflight
 
 // models with instrument for interest only
 // full patient level only model incl instrument
@@ -436,7 +384,7 @@ estimates save ../data/estimates/early4_2level.ster, replace
 * NOTE: 2013-02-28 - this includes the instruments
 * NOTE: 2013-02-28 - this is a 2 level model:
 * not (necesarily) directly translatable to propensity
-
+use ../data/working_postflight.dta, clear
 qui include mt_Programs
 estimates use ../data/estimates/early4_2level.ster
 // replay
@@ -456,10 +404,10 @@ mt_extract_varname_from_parm
 spot_label_table_vars
 
 // label age categories by hand
-replace var_level_lab = "18--39" if varname == "age" and var_level == 0
-replace var_level_lab = "40--59" if varname == "age" and var_level == 1
-replace var_level_lab = "60--79" if varname == "age" and var_level == 2
-replace var_level_lab = "80--" if varname == "age" and var_level == 3
+replace var_level_lab = "18--39" if varname == "age" & var_level == 0
+replace var_level_lab = "40--59" if varname == "age" & var_level == 1
+replace var_level_lab = "60--79" if varname == "age" & var_level == 2
+replace var_level_lab = "80--" if varname == "age" & var_level == 3
 
 
 // now produce table order
