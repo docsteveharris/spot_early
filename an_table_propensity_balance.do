@@ -91,14 +91,14 @@ foreach model of local balance_models {
 
 	// define the depvars (to be used in pstest)
 	if "`model'" == "pm_lvl1_cc0" local depvars ///
-		hes_overnight hes_emergx patients_perhesadmx ccot_shift_pattern cmp_beds_max ///
+		hes_overnight_k hes_emergx_k patients_perhesadmx ccot_shift_pattern cmp_beds_max ///
 		weekend out_of_hours ///
-		age male periarrest sepsis_dx v_ccmds icnarc0
+		age_k male periarrest sepsis_dx v_ccmds icnarc0
 
 	if "`model'" == "pm_lvl1_cc1" local depvars ///
-		hes_overnight hes_emergx patients_perhesadmx ccot_shift_pattern cmp_beds_max ///
+		hes_overnight_k hes_emergx_k patients_perhesadmx ccot_shift_pattern cmp_beds_max ///
 		weekend out_of_hours ///
-		age male periarrest sepsis_dx v_ccmds icnarc0
+		age_k male periarrest sepsis_dx v_ccmds icnarc0 ///
 		cc_recommend
 
 	// describe baseline bias *for this model* using pstest
@@ -163,11 +163,9 @@ foreach model of local balance_models {
 	local bias_mean = r(meanbiasaft)
 	local bias_p50 = r(medbiasaft)
 
-
-
 	// now you should have in the data the matching indicators you need to produce the balance Table
 	// loop over variables in propensity score
-	foreach varname of global depvars {
+	foreach varname of local depvars {
 		local var_type = ""
 		if inlist("`varname'", ///
 			"hes_overnight_k", ///
@@ -287,6 +285,9 @@ foreach model of local balance_models {
 	}
 }
 
+// save a copy of the data now so can come back to it to draw qqplots
+save ../data/scratch/scratch.dta, replace
+
 postclose `pname'
 use `pfile', clear
 compress
@@ -296,10 +297,10 @@ save ../outputs/tables/$table_name, replace
 *  = Now produce a table =
 *  =======================
 use ../outputs/tables/$table_name, clear
+// Output will be for single level including cc_recommend 
 keep if model == "pm_lvl1_cc1"
 gen table_order = _n
 // Hack to get age as categorical since you stripped this out above
-replace varname = "age_k" if varname =="age"
 replace varname = "icu_recommend" if varname =="cc_recommend"
 
 levelsof model, clean local(models)
@@ -361,6 +362,7 @@ ingap 1 17 19
 replace tablerowlabel = "\textit{Site factors}" if _n == 1
 replace tablerowlabel = "\textit{Timing factors}" if _n == 18
 replace tablerowlabel = "\textit{Patient factors}" if _n == 21
+ingap 18 21
 
 // indent category labels
 replace tablerowlabel =  "\hspace*{1em}\smaller[1]{" + tablerowlabel + "}"
@@ -369,17 +371,107 @@ local vars vmean_all0 vmean_all1 vmean_match0 vmean_match1
 foreach var of local vars {
 	replace `var' = 100 * `var' if var_type == "categorical"
 	replace `var' = round(100 * `var', 0.1) if var_type == "binary"
-	sdecode `var', format(%9.2fc) replace
+	sdecode `var', format(%9.1fc) replace
 	// one decimal place if %
-	replace `var' = substr(`var', 1, length(`var')-1) if var_type == "categorical"
-	replace `var' = substr(`var', 1, length(`var')-1) if var_type == "binary"
+	// replace `var' = substr(`var', 1, length(`var')-1) if var_type == "categorical"
+	// replace `var' = substr(`var', 1, length(`var')-1) if var_type == "binary"
 }
 
-sdecode dx, format(%9.2fc) replace
-sdecode dxm, format(%9.2fc) replace
+sdecode dx, format(%9.1fc) replace
+sdecode dxm, format(%9.1fc) replace
+
+*  =================================
+*  = Now generate the latex output =
+*  =================================
 local vars vmean_all0 vmean_all1 dx vmean_match0 vmean_match1 dxm
 local cols tablerowlabel `vars'
 order `cols'
+
+qui su count_all
+local count_all: di %9.0fc `=r(max)'
+local count_all = trim("`count_all'")
+di "`count_all'"
+qui su count_matched
+local count_matched: di %9.0fc `=r(max)'
+local count_matched = trim("`count_matched'")
+di "`count_matched'"
+
+local h0 "& \multicolumn{3}{c}{Full sample (N = `count_all')} & \multicolumn{3}{c}{Matched sample (N = `count_matched')} \\"
+local h0_rule "\cmidrule(rl){2-4} \cmidrule(rl){5-7}"
+local h1 "& \multicolumn{2}{c}{Mean or \%} && \multicolumn{2}{c}{Mean or \%} \\"
+local h1_rule "\cmidrule(rl){2-3} \cmidrule(rl){5-6}"
+// you need to backslash escape the $ signs else stata looks for a global
+local h2 "& Early & Deferred & \$ dx \$ & Early & Deferred & \$ dx_m \$ \\ "
+
+local dx_mean: di %9.1fc $pm_lvl1_cc1_dx_mean
+local dx_mean = trim("`dx_mean'")
+local dxm_mean: di %9.1fc $pm_lvl1_cc1_dxm_mean
+local dxm_mean = trim("`dxm_mean'")
+
+local dx_max: di %9.1fc $pm_lvl1_cc1_dx_max
+local dx_max = trim("`dx_max'")
+local dxm_max: di %9.1fc $pm_lvl1_cc1_dxm_max
+local dxm_max = trim("`dxm_max'")
+
+local f0 "Standardised differences &&&&&& \\"
+local f1 "\hspace*{1em}\smaller[1]{Maximum} &&& `dx_max' &&& `dxm_max' \\"
+local f2 "\hspace*{1em}\smaller[1]{Mean} &&& `dx_mean' &&& `dxm_mean' \\"
+
+local justify X[7l] X[l] X[l] X[r] X[l] X[l] X[r]
+local tablefontsize "\scriptsize"
+local arraystretch 1.0
+local taburowcolors 2{white .. white}
+
+
+listtab `cols' ///
+	using ../outputs/tables/$table_name.tex ///
+	, ///
+	replace ///
+	begin("") delimiter("&") end(`"\\"') ///
+	headlines( ///
+		"`tablefontsize'" ///
+		"\renewcommand{\arraystretch}{`arraystretch'}" ///
+		"\taburowcolors `taburowcolors'" ///
+		"\begin{tabu} {`justify'}" ///
+		"\toprule" ///
+		"`h0'" ///
+		"`h0_rule'" ///
+		"`h1'" ///
+		"`h1_rule'" ///
+		"`h2'" ///
+		"\midrule" ) ///
+	footlines( ///
+		"\midrule" ///
+		"`f0'" ///
+		"`f1'" ///
+		"`f2'" ///
+		"\bottomrule" ///
+		"\end{tabu} " ///
+		"\label{tab:$table_name} ") ///
+
+
+
+*  =====================
+*  = Now draw qq plots =
+*  =====================
+use ../data/scratch/scratch.dta, clear
+gen icnarc0_matched = icnarc0 if _treated != .
+qqplot icnarc0_matched icnarc0 ///
+	, ///
+	msymbol(o) msize(small) ///
+	xlabel(0(10)50) ///
+	xscale(noextend) ///
+	xtitle("Full sample") ///
+	xsize(4) ///
+	ylabel(0(10)50) ///
+	yscale(noextend) ///
+	ytitle("Matched sample") ///
+	ysize(4) ///
+	title("")
+
+graph rename icnarc0_qqplot, replace
+graph export ../outputs/figures/icnarc0_qqplot.pdf ///
+    , name(icnarc0_qqplot) replace
 
 
 
